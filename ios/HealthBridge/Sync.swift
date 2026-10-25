@@ -38,8 +38,11 @@ final class Sync: @unchecked Sendable {
         ("bp_dia", .bloodPressureDiastolic, .millimeterOfMercury(), 1),
         ("weight_kg", .bodyMass, .gramUnit(with: .kilo), 1),
     ]
+    /// Workout distance, first one present: walks/runs, rides, swims.
+    let distances: [HKQuantityTypeIdentifier] = [.distanceWalkingRunning, .distanceCycling, .distanceSwimming]
     var readTypes: Set<HKObjectType> {
         var s: Set<HKObjectType> = [HKObjectType.workoutType(), HKCategoryType(.sleepAnalysis)]
+        for id in distances { s.insert(HKQuantityType(id)) }
         for (_, id, _) in sums { s.insert(HKQuantityType(id)) }
         for (_, id) in avgs { s.insert(HKQuantityType(id)) }
         for (_, id, _, _) in extras { s.insert(HKQuantityType(id)) }
@@ -224,7 +227,9 @@ final class Sync: @unchecked Sendable {
                 if let a = h.averageQuantity() { d["hr_avg"] = a.doubleValue(for: bpm).rounded() }
                 if let m = h.maximumQuantity() { d["hr_max"] = m.doubleValue(for: bpm).rounded() }
             }
-            if let dist = w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity() { d["km"] = (dist.doubleValue(for: .meterUnit(with: .kilo)) * 100).rounded() / 100 }
+            if let dist = distances.lazy.compactMap({ w.statistics(for: HKQuantityType($0))?.sumQuantity() }).first {
+                d["km"] = (dist.doubleValue(for: .meterUnit(with: .kilo)) * 100).rounded() / 100
+            }
             ws.append(d)
         }
         p["workouts"] = ws
