@@ -18,6 +18,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - The phone only counts a sync as delivered when the Mac's sealed ack decrypts to its own `sent_at`; a plain 200 from anything else at that address no longer makes it skip days
 - Overlapping syncs (unlock + open, two observers) share one send, syncs triggered during a backfill are skipped (it already covers today), and the receiver serializes day-file writes, so an older payload can no longer overwrite a newer one
 - Workout distance for cycling and swimming (was walking/running only)
+- `init --force` rotates only the secret (into `secret_file` if set) and keeps the rest of the config
 - A failed send no longer leaves a gap: each run resends every day since the last sync the Mac accepted (up to 60 days)
 - Runs while the phone is locked are skipped instead of sending empty days that overwrote good data on the Mac. This now also holds when the phone locks mid-read, when a Health query fails, and during backfill; the receiver also refuses to replace a recorded day with an empty one
 

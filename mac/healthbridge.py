@@ -96,9 +96,17 @@ def init(team=None, bundle_id=None, force=False):
     if cfg and cfg.get("secret") and not force:
         print(f"keeping existing secret in {CONFIG}")
     else:
-        cfg = {**DEFAULTS, "secret": secrets.token_urlsafe(32)}
-        write_private(CONFIG, json.dumps({k: cfg[k] for k in ("secret", "port", "bind", "lang", "data_dir", "archive_path")}, indent=2))
-        print(f"wrote {CONFIG} (mode 600)")
+        # rotate only the secret: keep every other setting (port, extra_ports, post_sync_cmd, secret_file, ...)
+        raw = json.loads(CONFIG.read_text()) if CONFIG.exists() else {"secret": None, **DEFAULTS}
+        secret = secrets.token_urlsafe(32)
+        if raw.get("secret_file"):
+            write_private(Path(os.path.expanduser(raw["secret_file"])), secret + "\n")
+            print(f"wrote new secret to {raw['secret_file']} (mode 600)")
+        else:
+            raw["secret"] = secret
+            write_private(CONFIG, json.dumps(raw, indent=2))
+            print(f"wrote {CONFIG} (mode 600)")
+        cfg = {**DEFAULTS, **raw, "secret": secret}
     host = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True).stdout.strip() or socket.gethostname().split(".")[0]
     ip = lan_ip()
     swift = ROOT / "ios/HealthBridge/Config.swift"
