@@ -125,13 +125,17 @@ def init(team=None, bundle_id=None, force=False):
 # ---------------------------------------------------------------- serve
 def serve():
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    import hashlib
+    import hashlib, threading
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     cfg = load_config()
     if not cfg or not cfg.get("secret"):
         sys.exit(f"no secret in {CONFIG}; run: python3 mac/healthbridge.py init")
     key = hashlib.sha256(cfg["secret"].encode()).digest()
     out = Path(os.path.expanduser(cfg["data_dir"]))
+    write_lock = threading.Lock()  # concurrent syncs must not interleave the read-compare-write of a day file
+
+    def has_metrics(day):
+        return bool(day.get("workouts")) or any(k not in ("date", "generated_at", "workouts", "_sent_at") for k in day)
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 15  # drop clients that connect and stall
@@ -159,24 +163,36 @@ def serve():
             if not isinstance(days, list) or not all(isinstance(d, dict) and DATE_RE.fullmatch(str(d.get("date", ""))) for d in days):
                 return self.send_error(400)  # validate everything before writing anything
             try:
-                for day in days:
-                    path = out / f"{day['date']}.json"
-                    try:
-                        if json.loads(path.read_text()).get("_sent_at", 0) >= sent_at:
-                            continue  # replay or older payload: keep the newer data
-                    except (FileNotFoundError, ValueError):
-                        pass  # missing or unreadable file: overwrite
-                    write_private(path, json.dumps({**day, "_sent_at": sent_at}, ensure_ascii=False, indent=2))
+                with write_lock:
+                    for day in days:
+                        path = out / f"{day['date']}.json"
+                        try:
+                            old = json.loads(path.read_text())
+                        except (FileNotFoundError, ValueError):
+                            old = None  # missing or unreadable file: overwrite
+                        if old is not None:
+                            if old.get("_sent_at", 0) >= sent_at:
+                                continue  # replay or older payload: keep the newer data
+                            if not has_metrics(day) and has_metrics(old):
+                                sys.stderr.write(f"kept {day['date']}: incoming day is empty\n")
+                                continue  # an empty read must never erase a recorded day
+                        write_private(path, json.dumps({**day, "_sent_at": sent_at}, ensure_ascii=False, indent=2))
             except Exception as e:
                 sys.stderr.write(f"write failed: {e}\n")
                 return self.send_error(500)
-            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+            # sealed ack: the phone only counts a sync as delivered when this decrypts to its own sent_at,
+            # so another service answering 200 on this address can't make it skip days
+            nonce = os.urandom(12)
+            ack = nonce + AESGCM(key).encrypt(nonce, json.dumps({"ack": sent_at}).encode(), None)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(ack)))
+            self.end_headers(); self.wfile.write(ack)
             schedule_archive()
 
         def log_message(self, fmt, *args):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
-    import threading
     pending = threading.Event()
 
     def schedule_archive():
