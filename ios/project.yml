@@ -20,7 +20,7 @@ targets:
       properties:
         CFBundleDisplayName: HealthBridge
         UILaunchScreen: {}
-        NSHealthShareUsageDescription: Reads activity, heart rate, HRV, sleep, blood oxygen, respiratory rate, VO2 max, blood pressure, weight and workouts, and sends them encrypted to your own Mac only.
+        NSHealthShareUsageDescription: Reads activity, workout distance, heart rate, HRV, sleep, blood oxygen, respiratory rate, VO2 max, blood pressure, weight and workouts, and sends them encrypted to your own Mac only.
         NSLocalNetworkUsageDescription: Sends your encrypted health data to your own Mac on the same Wi-Fi.
         NSAppTransportSecurity: {NSAllowsLocalNetworking: true}
         UIBackgroundModes: [fetch, processing]

@@ -82,6 +82,8 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 - Payload: AES-256-GCM; key = SHA-256 of a 256-bit random secret. The secret itself never travels
 - Rejected with 401: anything that does not decrypt, or was sealed more than 10 minutes ago
 - Replays cannot overwrite newer data: each day keeps the payload with the latest `sent_at`
+- An empty day never replaces a recorded one, and the phone never sends a day it couldn't fully read (locked phone, failed Health query). So if you delete the only sample of a day in Health, the Mac keeps its old copy of that day
+- The Mac answers with a sealed ack of the payload's `sent_at`; the phone only counts a sync as delivered when that ack decrypts, so another service answering 200 on the same address can't make it skip days
 - Every date is validated (`YYYY-MM-DD`) before anything is written; bodies are capped at 4 MB; stalled connections time out after 15 s; data files are created with mode 600
 - The phone only falls back to the Mac's LAN IP when the `.local` name cannot be reached at all, never after an HTTP answer
 - Transport is plain HTTP on your LAN; confidentiality and integrity come from the sealed payload
@@ -97,7 +99,7 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 
 - You build the iPhone app yourself with Xcode; there is no App Store build
 - Free Apple ID signing expires after 7 days
-- Syncs only when the phone and Mac share a Wi-Fi; days missed while away are re-sent (last 3 days on every sync)
+- Syncs only when the phone and Mac share a Wi-Fi; days missed while away are re-sent on the next sync, up to 60 days back (older gaps: Backfill all history)
 - iOS decides when background delivery runs (at most hourly); opening the app always syncs
 - If your phone runs a VPN/proxy app, make sure local network traffic goes direct
 - Workout types are mapped from Apple's `HKWorkoutActivityType` numbers; unknown ones show as `#<number>`
