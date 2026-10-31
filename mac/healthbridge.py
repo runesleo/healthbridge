@@ -412,11 +412,14 @@ def context(days=90, out=None, profile=None):
     lines += ["", f"## {t['years']}", "", yh, sep(yh)]
     for y in sorted(years, reverse=True)[:10]:
         lines.append(f"| {y} | " + " | ".join(show(avg(years[y], m[0]), m[4], m[5]) for m in shown) + " |")
-    def kind(w):
+    def kind(w):  # only known enum values or a bare number reach the AI-facing text
         name = TYPES.get(w.get("type"))
-        return (name[1] if lang == "zh" else name[0]) if name else f"#{w.get('type')}"
+        return (name[1] if lang == "zh" else name[0]) if name else f"#{w['type']}" if isinstance(w.get("type"), int) else "?"
     lines += ["", f"## {t['train']}", ""]
-    ws = [w for d in window(30) for w in d.get("workouts", [])]
+    num = lambda v: v if isinstance(v, (int, float)) else 0
+    ws = [{**w, "minutes": num(w.get("minutes")), "active_kcal": num(w.get("active_kcal")),
+           "hr_avg": w.get("hr_avg") if isinstance(w.get("hr_avg"), (int, float)) else None}
+          for d in window(30) for w in d.get("workouts", []) if isinstance(w, dict)]
     if ws:
         groups = defaultdict(list)
         for w in ws:
@@ -429,7 +432,8 @@ def context(days=90, out=None, profile=None):
         lines += ["", f"### {t['weeks']}", "", t["wkh"], sep(t["wkh"])]
         for i in range(8):
             start = monday - dt.timedelta(weeks=i)
-            g = [w for j in range(7) for w in by_date.get((start + dt.timedelta(days=j)).isoformat(), {}).get("workouts", [])]
+            g = [{**w, "minutes": num(w.get("minutes")), "active_kcal": num(w.get("active_kcal"))} for j in range(7)
+                 for w in by_date.get((start + dt.timedelta(days=j)).isoformat(), {}).get("workouts", []) if isinstance(w, dict)]
             lines.append(f"| {start} | {len(g)} | {sum(w.get('minutes', 0) for w in g) / 60:.1f} | "
                          f"{round(sum(w.get('active_kcal') or 0 for w in g)):,} |")
     else:
