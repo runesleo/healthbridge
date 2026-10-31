@@ -14,6 +14,7 @@
 - **完整历史**：点一下就把「健康」里所有历史补传过来，一直回到你有记录的第一天
 - **不用管它**：手表同步了新训练，iOS 会在后台叫醒 App 自动发；Mac 按天存成 JSON
 - **一份能直接看的档案**：Markdown 文件，按年、按月汇总，外加每次训练的明细，中英文可选
+- **给任何 AI 的健康背景**：`context` 输出一页 Markdown（各项基线、近 7 天 vs 基线、异常日、逐年长期趋势、训练量），贴给 ChatGPT、Claude、DeepSeek 或本地模型都行
 - **隐私优先**：手机上先加密，只发到家里 Wi-Fi 下你自己的 Mac，不经过任何第三方服务器
 
 ## 它是怎么工作的
@@ -70,6 +71,15 @@ python3 mac/healthbridge.py doctor          # 或加 --json
 ## 定时同步
 
 新训练后 iOS 会叫醒 App，但时间由系统定，而且那一刻 Mac 得连得上。想要固定时间同步，用「快捷指令」：**自动化 → 新建 → 特定时间**（比如 08:00 和 22:30）和/或 **无线局域网 → 家里的网络**，操作选 **HealthBridge → Sync health data**，设为「立即运行」。每次都会把上次成功之后的每一天重发一遍，漏一次会自动补上。手机锁屏时读不到健康数据，这种情况会跳过，解锁后再同步。
+
+## 让 AI 帮你看健康数据
+
+```bash
+python3 mac/healthbridge.py context | pbcopy   # 然后粘贴到任意 AI 对话
+python3 mac/healthbridge.py context --days 180 --out ~/health-context.md
+```
+
+手表不知道的信息——年龄、病史、用药、最近的化验结果、你想改善什么——写进 `~/.config/healthbridge/profile.md`（或在配置里设 `profile_path`），会放在最前面。这个命令不往任何地方发数据，给哪个 AI 看由你决定。
 
 ## 接上你自己的分析
 

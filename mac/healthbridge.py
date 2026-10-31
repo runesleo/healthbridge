@@ -6,6 +6,7 @@ Commands:
   init     create the shared secret + config, and write the iOS app's Config.swift / Local.xcconfig
   serve    run the receiver (AES-256-GCM sealed JSON over your home Wi-Fi)
   archive  rebuild the Markdown archive from the daily JSON files
+  context  print a health background in Markdown to paste into any AI chat (baselines, recent changes, unusual days, training)
 """
 import argparse, json, os, re, secrets, shutil, socket, subprocess, sys, tempfile, time
 from pathlib import Path
@@ -290,17 +291,174 @@ def archive():
     return 0
 
 
+# ---------------------------------------------------------------- context
+# (key, English label, 中文名, unit, divisor, decimals)
+METRICS = [("resting_hr_avg", "Resting HR", "静息心率", "bpm", 1, 0), ("hrv_sdnn_ms", "HRV (SDNN)", "心率变异性 HRV", "ms", 1, 0),
+           ("walking_hr_avg", "Walking HR", "步行心率", "bpm", 1, 0), ("sleep_min", "Sleep", "睡眠", "h", 60, 1),
+           ("deep_min", "Deep sleep", "深睡", "min", 1, 0), ("rem_min", "REM sleep", "REM 睡眠", "min", 1, 0),
+           ("steps", "Steps", "步数", "", 1, 0), ("active_kcal", "Active energy", "活动消耗", "kcal", 1, 0),
+           ("exercise_min", "Exercise", "锻炼", "min", 1, 0), ("spo2_pct", "Blood oxygen", "血氧", "%", 1, 1),
+           ("resp_rate", "Respiratory rate", "呼吸频率", "/min", 1, 1), ("vo2max", "VO₂ max", "最大摄氧量 VO₂max", "ml/kg·min", 1, 1),
+           ("bp_sys", "Systolic BP", "收缩压", "mmHg", 1, 0), ("bp_dia", "Diastolic BP", "舒张压", "mmHg", 1, 0),
+           ("weight_kg", "Weight", "体重", "kg", 1, 1)]
+# Daily totals that are still growing on the current day; flags only look at body signals, not activity
+PARTIAL = {"steps", "active_kcal", "exercise_min"}
+FLAGGED = {"resting_hr_avg", "hrv_sdnn_ms", "walking_hr_avg", "sleep_min", "deep_min", "rem_min", "spo2_pct", "resp_rate", "bp_sys", "bp_dia"}
+LONG_TERM = ["resting_hr_avg", "hrv_sdnn_ms", "vo2max", "steps", "sleep_min", "weight_kg"]
+CTX = {
+    "en": {"title": "My health context (for AI)",
+           "intro": ["Personal health data summarised by HealthBridge from Apple Health. Use it as background when answering my health questions.",
+                     "It is not a diagnosis. Point out what deserves a doctor's attention, and say when the data is too thin to tell."],
+           "meta": "Data through {end} ({stale}); {n} of the last {days} days have data. Generated {now}.",
+           "fresh": "up to date", "stale": "last sync {k} days ago",
+           "profile": "About me (self-reported)", "now": "Recent vs baseline",
+           "nh": "| Metric | Last 7 days | Last 30 days | Last {days} days | 7 days vs baseline |",
+           "note": "Baseline = the {days}-day window excluding the last 7 days. Today's steps/energy/exercise are left out until the day is over.",
+           "flags": "Unusual days (last 14 days, ≥2 SD from baseline)", "noflags": "None.",
+           "fh": "| Date | Metric | Value | Baseline (±1 SD) |",
+           "years": "Long-term trend (yearly averages)", "year": "Year",
+           "train": "Training, last 30 days", "th": "| Type | Sessions | Hours | Avg HR |",
+           "weeks": "Weekly training load (last 8 weeks)", "wkh": "| Week starting | Sessions | Hours | Active kcal from workouts |",
+           "notrain": "No workouts recorded."},
+    "zh": {"title": "我的健康背景（给 AI 看）",
+           "intro": ["以下是 HealthBridge 从 Apple Health 汇总的个人健康数据，请在回答我的健康问题时作为背景参考。",
+                     "它不是诊断。请指出哪些情况值得找医生，数据不足以判断时直接说明。"],
+           "meta": "数据截至 {end}（{stale}），近 {days} 天中有 {n} 天有数据。生成于 {now}。",
+           "fresh": "已是最新", "stale": "距上次同步 {k} 天",
+           "profile": "关于我（自填）", "now": "近期与基线对比",
+           "nh": "| 指标 | 近 7 天 | 近 30 天 | 近 {days} 天 | 近 7 天 vs 基线 |",
+           "note": "基线 = 近 {days} 天去掉最近 7 天。当天的步数/活动消耗/锻炼未满一天，不计入。",
+           "flags": "异常日（近 14 天，偏离基线 ≥2 个标准差）", "noflags": "无。",
+           "fh": "| 日期 | 指标 | 数值 | 基线（±1 标准差） |",
+           "years": "长期趋势（年均值）", "year": "年份",
+           "train": "近 30 天训练", "th": "| 类型 | 次数 | 时长 h | 平均心率 |",
+           "weeks": "近 8 周训练量", "wkh": "| 周起始 | 次数 | 时长 h | 训练活动消耗 kcal |",
+           "notrain": "没有训练记录。"},
+}
+
+
+def context(days=90, out=None, profile=None):
+    import datetime as dt, statistics
+    from collections import defaultdict
+    cfg = load_config() or DEFAULTS
+    lang = cfg.get("lang", "en") if cfg.get("lang") in CTX else "en"
+    t = CTX[lang]
+    src = Path(os.path.expanduser(cfg["data_dir"]))
+    by_date = {p.stem: json.loads(p.read_text()) for p in sorted(src.glob("*.json")) if DATE_RE.fullmatch(p.stem)}
+    if not by_date:
+        sys.exit(f"no data in {src}")
+    end = dt.date.fromisoformat(max(by_date))
+    if end == dt.date.today():  # today's activity totals are incomplete
+        by_date[end.isoformat()] = {k: v for k, v in by_date[end.isoformat()].items() if k not in PARTIAL}
+    def window(n, skip=0):
+        return [by_date[k] for k in ((end - dt.timedelta(days=i)).isoformat() for i in range(skip, n)) if k in by_date]
+    def vals(ds, key):
+        return [d[key] for d in ds if isinstance(d.get(key), (int, float))]
+    def show(v, div, dec):
+        if v is None:
+            return "—"
+        v = v / div
+        return f"{v:,.{dec}f}" if dec else f"{round(v):,}"
+    def avg(ds, key):
+        xs = vals(ds, key)
+        return statistics.mean(xs) if xs else None
+    label = lambda m: m[2] if lang == "zh" else m[1]
+    unit = lambda m: f" {m[3]}" if m[3] else ""
+    sep = lambda header: "|" + "---|" * (header.count("|") - 1)
+    recent, base = window(7), window(days, skip=7)
+    stale_days = (dt.date.today() - end).days
+    lines = [f"# {t['title']}", "", *t["intro"], "",
+             t["meta"].format(end=end, days=days, n=len(window(days)), now=dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              stale=t["fresh"] if stale_days <= 1 else t["stale"].format(k=stale_days)), ""]
+    profile = Path(os.path.expanduser(profile or cfg.get("profile_path") or CONFIG.parent / "profile.md"))
+    notes = re.sub(r"<!--.*?-->", "", profile.read_text(), flags=re.S).strip() if profile.exists() else ""
+    if notes:
+        lines += [f"## {t['profile']}", "", notes, ""]
+    nh = t["nh"].format(days=days)
+    lines += [f"## {t['now']}", "", nh, sep(nh)]
+    for m in METRICS:
+        key, div, dec = m[0], m[4], m[5]
+        if not vals(window(days), key):
+            continue
+        r, b = avg(recent, key), avg(base, key)
+        delta = f"{(r - b) / b * 100:+.0f}%" if r is not None and b else "—"
+        lines.append(f"| {label(m)}{unit(m)} | {show(r, div, dec)} | {show(avg(window(30), key), div, dec)} | "
+                     f"{show(avg(window(days), key), div, dec)} | {delta} |")
+    lines += ["", t["note"].format(days=days), "", f"## {t['flags']}", ""]
+    flags = []
+    for m in METRICS:
+        key, div, dec = m[0], m[4], m[5]
+        if key not in FLAGGED:
+            continue
+        xs = vals(window(days, skip=14), key)
+        if len(xs) < 14:
+            continue
+        mu, sd = statistics.mean(xs), statistics.pstdev(xs)
+        if not sd:
+            continue
+        for d in window(14):
+            v = d.get(key)
+            if isinstance(v, (int, float)) and abs(v - mu) / sd >= 2:
+                flags.append((d["date"], f"{label(m)}{unit(m)}", show(v, div, dec), f"{show(mu, div, dec)} (±{show(sd, div, dec)})"))
+    if flags:
+        lines += [t["fh"], sep(t["fh"])] + [f"| {' | '.join(f)} |" for f in sorted(flags, reverse=True)]
+    else:
+        lines.append(t["noflags"])
+    years = defaultdict(list)
+    for k, d in by_date.items():
+        years[k[:4]].append(d)
+    shown = [m for m in METRICS if m[0] in LONG_TERM and any(vals(ds, m[0]) for ds in years.values())]
+    yh = f"| {t['year']} | " + " | ".join(f"{label(m)}{unit(m)}" for m in shown) + " |"
+    lines += ["", f"## {t['years']}", "", yh, sep(yh)]
+    for y in sorted(years, reverse=True)[:10]:
+        lines.append(f"| {y} | " + " | ".join(show(avg(years[y], m[0]), m[4], m[5]) for m in shown) + " |")
+    def kind(w):
+        name = TYPES.get(w.get("type"))
+        return (name[1] if lang == "zh" else name[0]) if name else f"#{w.get('type')}"
+    lines += ["", f"## {t['train']}", ""]
+    ws = [w for d in window(30) for w in d.get("workouts", [])]
+    if ws:
+        groups = defaultdict(list)
+        for w in ws:
+            groups[kind(w)].append(w)
+        lines += [t["th"], sep(t["th"])]
+        for k, g in sorted(groups.items(), key=lambda kv: -sum(w.get("minutes", 0) for w in kv[1])):
+            hr = [w["hr_avg"] for w in g if w.get("hr_avg")]
+            lines.append(f"| {k} | {len(g)} | {sum(w.get('minutes', 0) for w in g) / 60:.1f} | {round(statistics.mean(hr)) if hr else '—'} |")
+        monday = end - dt.timedelta(days=end.weekday())
+        lines += ["", f"### {t['weeks']}", "", t["wkh"], sep(t["wkh"])]
+        for i in range(8):
+            start = monday - dt.timedelta(weeks=i)
+            g = [w for j in range(7) for w in by_date.get((start + dt.timedelta(days=j)).isoformat(), {}).get("workouts", [])]
+            lines.append(f"| {start} | {len(g)} | {sum(w.get('minutes', 0) for w in g) / 60:.1f} | "
+                         f"{round(sum(w.get('active_kcal') or 0 for w in g)):,} |")
+    else:
+        lines.append(t["notrain"])
+    text = "\n".join(lines) + "\n"
+    if out:
+        write_private(Path(os.path.expanduser(out)), text)
+        print(f"wrote {out}", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("doctor"); d.add_argument("--json", action="store_true")
     i = sub.add_parser("init"); i.add_argument("--team", help="Apple Developer Team ID"); i.add_argument("--bundle-id"); i.add_argument("--force", action="store_true", help="rotate the secret")
     sub.add_parser("serve"); sub.add_parser("archive")
+    c = sub.add_parser("context", help="health background Markdown to paste into an AI chat")
+    c.add_argument("--days", type=int, default=90, help="baseline window in days (default 90)")
+    c.add_argument("--out", help="write to this file instead of stdout")
+    c.add_argument("--profile", help="your self-written notes to include (default: profile.md next to the config)")
     a = ap.parse_args()
     if a.cmd == "doctor": sys.exit(doctor(a.json))
     if a.cmd == "init": sys.exit(init(a.team, a.bundle_id, a.force))
     if a.cmd == "serve": serve()
     if a.cmd == "archive": sys.exit(archive())
+    if a.cmd == "context": sys.exit(context(a.days, a.out, a.profile))
 
 
 if __name__ == "__main__":

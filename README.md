@@ -14,6 +14,7 @@ Get your Apple Watch data out of the iPhone and onto your own Mac — every day,
 - **Full history** — one tap backfills everything in Apple Health, back to your first recorded day
 - **Automatic** — iOS wakes the app when the watch syncs a new workout; the Mac stores one JSON file per day
 - **A readable archive** — a Markdown file with yearly and monthly summaries plus a list of every workout (English or Chinese)
+- **Health context for any AI** — `context` prints a one-page Markdown summary (baselines, last 7 days vs baseline, unusual days, long-term yearly trend, training load) to paste into ChatGPT, Claude or any other AI, local or cloud
 - **Private by design** — encrypted on the phone, sent only to your Mac on your home Wi-Fi, no third-party server
 
 ## How it works
@@ -70,6 +71,15 @@ python3 mac/healthbridge.py doctor          # or --json
 ## Scheduled sync
 
 iOS wakes the app after new workouts, but only on its own schedule, and the Mac has to be reachable at that moment. For a fixed schedule, use the Shortcuts app: **Automation → New → Time of Day** (say 08:00 and 22:30) and/or **Wi-Fi → your home network**, action **HealthBridge → Sync health data**, set to *Run Immediately*. Each run resends every day since the last accepted sync, so a missed one fills itself in. Health data can't be read while the phone is locked; such runs are skipped and retried on unlock.
+
+## Ask an AI about your health
+
+```bash
+python3 mac/healthbridge.py context | pbcopy   # then paste into any AI chat
+python3 mac/healthbridge.py context --days 180 --out ~/health-context.md
+```
+
+Add what the watch can't know — age, conditions, medication, recent lab results, what you're trying to change — to `~/.config/healthbridge/profile.md` (or set `profile_path` in the config); it is included at the top. Nothing is sent anywhere by this command: you decide which AI sees the text.
 
 ## Hook your own analysis
 

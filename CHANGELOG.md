@@ -5,6 +5,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 ## [Unreleased]
 
 ### Added
+- `context` command: a Markdown health background for pasting into any AI — 7/30/90-day averages with change vs baseline, unusual days in the last two weeks (≥2 SD), yearly long-term trend, training by type and weekly load; includes your own `profile.md` notes. Today's still-growing activity totals are left out
 - **Sync health data** action for the Shortcuts app: a personal automation (a time of day, or joining your home Wi-Fi) can sync without opening the app
 - Receiver `extra_ports` config: listen on more ports, e.g. for a Tailscale address where `port` is taken
 - Opening the app syncs; unlocking the phone after a locked background run syncs
