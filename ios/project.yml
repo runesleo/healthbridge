@@ -21,7 +21,9 @@ targets:
         CFBundleDisplayName: HealthBridge
         UILaunchScreen: {}
         NSHealthShareUsageDescription: Reads activity, heart rate, HRV, sleep, blood oxygen, respiratory rate, VO2 max, blood pressure, weight, workouts, water, time in daylight and logged moods, and sends them encrypted to your own Mac only.
-        NSHealthUpdateUsageDescription: Saves a glass of water to Apple Health when you use the Log water shortcut.
+        NSHealthUpdateUsageDescription: Saves the water and moods you log on the Today screen to Apple Health.
+        NSCameraUsageDescription: Takes a photo of your meal when you tap Take a photo.
+        NSPhotoLibraryAddUsageDescription: Saves meal photos to your Photos library so your Mac can tell when you ate.
         NSLocalNetworkUsageDescription: Sends your encrypted health data to your own Mac on the same Wi-Fi.
         NSAppTransportSecurity: {NSAllowsLocalNetworking: true}
         UIBackgroundModes: [fetch, processing]

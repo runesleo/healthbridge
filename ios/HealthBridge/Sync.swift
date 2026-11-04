@@ -111,15 +111,36 @@ final class Sync {
 
     func authorize() async -> String {
         guard HKHealthStore.isHealthDataAvailable() else { return L("Health data is not available on this device", "此设备没有健康数据") }
-        do { try await store.requestAuthorization(toShare: [HKQuantityType(.dietaryWater)], read: readTypes); startObservers(); return L("Authorization requested", "已请求授权") }
+        do { try await store.requestAuthorization(toShare: shareTypes, read: readTypes); startObservers(); return L("Authorization requested", "已请求授权") }
         catch { return L("Authorization failed: ", "授权失败：") + error.localizedDescription }
     }
 
-    /// Save one glass of water to Health (used by the "Log a glass of water" shortcut).
-    func logWater(ml: Double) async -> Bool {
+    /// Save one glass of water to Health; returns the sample's id so the Today screen can undo it.
+    func logWater(ml: Double) async -> UUID? {
         let now = Date()
         let sample = HKQuantitySample(type: HKQuantityType(.dietaryWater), quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml), start: now, end: now)
-        do { try await store.save(sample); return true } catch { return false }
+        do { try await store.save(sample); return sample.uuid } catch { return nil }
+    }
+
+    /// Save a momentary mood (valence −1…1) to Health → State of Mind (iOS 18+).
+    func logMood(valence: Double) async -> UUID? {
+        guard #available(iOS 18.0, *) else { return nil }
+        let m = HKStateOfMind(date: Date(), kind: .momentaryEmotion, valence: valence, labels: [], associations: [])
+        do { try await store.save(m); return m.uuid } catch { return nil }
+    }
+
+    /// Undo: delete a sample this app saved earlier.
+    func deleteSample(_ id: UUID, kind: String) async {
+        let type: HKSampleType
+        if kind == "mood" { guard #available(iOS 18.0, *) else { return }; type = .stateOfMindType() } else { type = HKQuantityType(.dietaryWater) }
+        let pred = HKQuery.predicateForObject(with: id)
+        _ = try? await store.deleteObjects(of: type, predicate: pred)
+    }
+
+    var shareTypes: Set<HKSampleType> {
+        var s: Set<HKSampleType> = [HKQuantityType(.dietaryWater)]
+        if #available(iOS 18.0, *) { s.insert(.stateOfMindType()) }
+        return s
     }
 
     func startObservers() {
@@ -189,6 +210,7 @@ final class Sync {
             ws.append(d)
         }
         p["workouts"] = ws
+        for (k, v) in DailyLog.payload(for: start) { p[k] = v }
         let ms = await moods(start, end)
         if !ms.isEmpty { p["moods"] = ms }
         return p

@@ -20,8 +20,11 @@ struct LogWaterIntent: AppIntent {
     static var openAppWhenRun = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let ok = await Sync.shared.logWater(ml: 250)
-        return .result(dialog: ok ? "+250 ml" : "Could not save. Open HealthBridge and tap Allow Health access.")
+        guard let id = await Sync.shared.logWater(ml: 250) else {
+            return .result(dialog: "Could not save. Open HealthBridge and tap Allow Health access.")
+        }
+        await DailyLog.shared.add("water", "250 ml", healthID: id)
+        return .result(dialog: "+250 ml")
     }
 }
 

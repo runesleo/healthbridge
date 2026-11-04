@@ -5,7 +5,14 @@ import BackgroundTasks
 @main
 struct HealthBridgeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    var body: some Scene { WindowGroup { ContentView() } }
+    var body: some Scene {
+        WindowGroup {
+            TabView {
+                TodayView().tabItem { Label(L("Today", "今天"), systemImage: "checklist") }
+                ContentView().tabItem { Label(L("Sync", "同步"), systemImage: "arrow.triangle.2.circlepath") }
+            }
+        }
+    }
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
