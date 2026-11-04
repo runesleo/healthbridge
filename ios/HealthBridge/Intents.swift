@@ -28,11 +28,28 @@ struct LogWaterIntent: AppIntent {
     }
 }
 
+/// "Quick log" — Siri or a shortcut asks what to log; the answer goes through the same rules as the Today screen.
+struct QuickLogIntent: AppIntent {
+    static var title: LocalizedStringResource = "Quick log"
+    static var description = IntentDescription("Log water, a meal, a check-in or a note in your own words.")
+    static var openAppWhenRun = false
+
+    @Parameter(title: "What to log", requestValueDialog: "What do you want to log?")
+    var text: String
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let r = await DailyLog.shared.quick(text)
+        return .result(dialog: "\(r)")
+    }
+}
+
 struct HealthBridgeShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: SyncHealthIntent(), phrases: ["Sync \(.applicationName)"],
                     shortTitle: "Sync health data", systemImageName: "heart.text.square")
         AppShortcut(intent: LogWaterIntent(), phrases: ["Log water in \(.applicationName)", "\(.applicationName) water"],
                     shortTitle: "Log water", systemImageName: "drop.fill")
+        AppShortcut(intent: QuickLogIntent(), phrases: ["Quick log in \(.applicationName)", "\(.applicationName) log", "\(.applicationName) 记一下"],
+                    shortTitle: "Quick log", systemImageName: "mic.fill")
     }
 }
