@@ -15,6 +15,7 @@ final class Sync {
         ("steps", .stepCount, .count()),
         ("active_kcal", .activeEnergyBurned, .kilocalorie()),
         ("exercise_min", .appleExerciseTime, .minute()),
+        ("water_ml", .dietaryWater, .literUnit(with: .milli)),
     ]
     let avgs: [(String, HKQuantityTypeIdentifier)] = [
         ("heart_rate", .heartRate),
@@ -40,8 +41,9 @@ final class Sync {
     }
 
     /// Minutes asleep for the night that ends on `day` (18:00 the evening before → 12:00),
-    /// merging overlapping samples from different sources so nothing is counted twice.
-    private func sleep(endingOn dayStart: Date) async -> [String: Double]? {
+    /// merging overlapping samples from different sources so nothing is counted twice,
+    /// plus when that sleep started and ended (fell asleep / woke up).
+    private func sleep(endingOn dayStart: Date) async -> [String: Any]? {
         let cal = Calendar.current
         guard let prev = cal.date(byAdding: .day, value: -1, to: dayStart),
               let from = cal.date(bySettingHour: 18, minute: 0, second: 0, of: prev),
@@ -69,7 +71,10 @@ final class Sync {
                                       HKCategoryValueSleepAnalysis.asleepDeep.rawValue, HKCategoryValueSleepAnalysis.asleepREM.rawValue]
         let asleep = samples.filter { asleepValues.contains($0.value) }
         guard !asleep.isEmpty else { return nil }
-        var out = ["sleep_min": merged(asleep)]
+        var out: [String: Any] = ["sleep_min": merged(asleep)]
+        let iso = ISO8601DateFormatter(); iso.timeZone = .current
+        if let s0 = asleep.map(\.startDate).min() { out["sleep_start"] = iso.string(from: max(s0, from)) }
+        if let e0 = asleep.map(\.endDate).max() { out["sleep_end"] = iso.string(from: min(e0, to)) }
         let deep = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
         let rem = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
         if !deep.isEmpty { out["deep_min"] = merged(deep) }  // omitted when the source has no stage data
