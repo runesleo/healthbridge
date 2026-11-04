@@ -16,6 +16,7 @@ final class Sync {
         ("active_kcal", .activeEnergyBurned, .kilocalorie()),
         ("exercise_min", .appleExerciseTime, .minute()),
         ("water_ml", .dietaryWater, .literUnit(with: .milli)),
+        ("daylight_min", .timeInDaylight, .minute()),
     ]
     let avgs: [(String, HKQuantityTypeIdentifier)] = [
         ("heart_rate", .heartRate),
@@ -37,6 +38,7 @@ final class Sync {
         for (_, id, _) in sums { s.insert(HKQuantityType(id)) }
         for (_, id) in avgs { s.insert(HKQuantityType(id)) }
         for (_, id, _, _) in extras { s.insert(HKQuantityType(id)) }
+        if #available(iOS 18.0, *) { s.insert(HKSampleType.stateOfMindType()) }
         return s
     }
 
@@ -80,6 +82,22 @@ final class Sync {
         if !deep.isEmpty { out["deep_min"] = merged(deep) }  // omitted when the source has no stage data
         if !rem.isEmpty { out["rem_min"] = merged(rem) }
         return out
+    }
+
+    /// Mood entries logged that day (Health → State of Mind): time, momentary or whole-day, valence −1…1.
+    private func moods(_ start: Date, _ end: Date) async -> [[String: Any]] {
+        guard #available(iOS 18.0, *) else { return [] }
+        let samples: [HKStateOfMind] = await withCheckedContinuation { c in
+            let pred = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+            store.execute(HKSampleQuery(sampleType: .stateOfMindType(), predicate: pred, limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, s, _ in
+                c.resume(returning: (s as? [HKStateOfMind]) ?? []) })
+        }
+        let iso = ISO8601DateFormatter(); iso.timeZone = .current
+        return samples.map { m in
+            ["time": iso.string(from: m.startDate), "kind": m.kind == .dailyMood ? "day" : "moment",
+             "valence": (m.valence * 100).rounded() / 100]
+        }
     }
 
     func authorize() async -> String {
@@ -155,6 +173,8 @@ final class Sync {
             ws.append(d)
         }
         p["workouts"] = ws
+        let ms = await moods(start, end)
+        if !ms.isEmpty { p["moods"] = ms }
         return p
     }
 
