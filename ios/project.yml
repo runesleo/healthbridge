@@ -2,6 +2,7 @@ name: HealthBridge
 options:
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
 configFiles:
   Debug: Local.xcconfig
   Release: Local.xcconfig
@@ -10,6 +11,8 @@ targets:
     type: application
     platform: iOS
     sources: [HealthBridge]
+    dependencies:
+      - target: HealthBridgeWatch
     entitlements:
       path: HealthBridge/HealthBridge.entitlements
       properties:
@@ -33,3 +36,18 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
+  HealthBridgeWatch:
+    type: application
+    platform: watchOS
+    sources: [HealthBridgeWatch]
+    info:
+      path: HealthBridgeWatch/Info.plist
+      properties:
+        CFBundleDisplayName: HealthBridge
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: me.leolabs.HealthBridge
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        PRODUCT_BUNDLE_IDENTIFIER: me.leolabs.HealthBridge.watchkitapp

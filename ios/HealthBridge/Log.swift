@@ -34,8 +34,8 @@ final class DailyLog: ObservableObject {
         return entries.filter { cal.isDate($0.time, inSameDayAs: day) }.sorted { $0.time > $1.time }
     }
 
-    func add(_ kind: String, _ label: String, healthID: UUID? = nil) {
-        entries.append(LogEntry(kind: kind, label: label, time: Date(), healthID: healthID))
+    func add(_ kind: String, _ label: String, healthID: UUID? = nil, at time: Date = Date()) {
+        entries.append(LogEntry(kind: kind, label: label, time: time, healthID: healthID))
         save()
         Task.detached { await Sync.shared.run(reason: "log", daysBack: 0) }
     }
@@ -53,7 +53,7 @@ final class DailyLog: ObservableObject {
     /// Water, meals and check-ins it recognizes are logged as usual; the full text is always kept as a note.
     /// Returns a short summary of what was logged.
     @discardableResult
-    func quick(_ raw: String) async -> String {
+    func quick(_ raw: String, at time: Date = Date()) async -> String {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return "" }
         var done: [String] = []
@@ -61,23 +61,23 @@ final class DailyLog: ObservableObject {
         if (t.contains("喝") && t.contains("水")) || t.contains("water") {
             let cups = QuickParse.cups(t)
             for _ in 0..<cups {
-                if let id = await Sync.shared.logWater(ml: TodayView.cupML) { append("water", "\(Int(TodayView.cupML)) ml", healthID: id) }
+                if let id = await Sync.shared.logWater(ml: TodayView.cupML, at: time) { append("water", "\(Int(TodayView.cupML)) ml", healthID: id, at: time) }
             }
             done.append(L("water ×\(cups)", "喝水 \(cups) 杯"))
         }
-        if let meal = QuickParse.meal(t) {
-            append("meal", "\(meal)：\(text)")
+        if let meal = QuickParse.meal(t, at: time) {
+            append("meal", "\(meal)：\(text)", at: time)
             done.append(meal)
         }
-        for c in QuickParse.checkins(t) { append("checkin", c); done.append(c) }
-        append("note", text)
+        for c in QuickParse.checkins(t) { append("checkin", c, at: time); done.append(c) }
+        append("note", text, at: time)
         save()
         Task.detached { await Sync.shared.run(reason: "log", daysBack: 0) }
         return done.isEmpty ? L("Noted", "已记下") : L("Logged: ", "已记：") + done.joined(separator: "、")
     }
 
-    private func append(_ kind: String, _ label: String, healthID: UUID? = nil) {
-        entries.append(LogEntry(kind: kind, label: label, time: Date(), healthID: healthID))
+    private func append(_ kind: String, _ label: String, healthID: UUID? = nil, at time: Date = Date()) {
+        entries.append(LogEntry(kind: kind, label: label, time: time, healthID: healthID))
     }
 
     /// Meals and check-ins of a day for the sync payload (water and mood are read back from Health instead).
@@ -110,14 +110,14 @@ enum QuickParse {
         return t.contains("瓶") ? 2 : 1
     }
 
-    static func meal(_ raw: String) -> String? {
+    static func meal(_ raw: String, at time: Date = Date()) -> String? {
         var t = raw
         for w in ["吃了药", "吃的药", "吃药"] { t = t.replacingOccurrences(of: w, with: "") }  // taking meds is not a meal
         if t.contains("早饭") || t.contains("早餐") || t.contains("breakfast") { return L("Breakfast", "早饭") }
         if t.contains("午饭") || t.contains("午餐") || t.contains("中饭") || t.contains("lunch") { return L("Lunch", "午饭") }
         if t.contains("晚饭") || t.contains("晚餐") || t.contains("dinner") { return L("Dinner", "晚饭") }
         if t.contains("夜宵") || t.contains("宵夜") || t.contains("加餐") || t.contains("零食") || t.contains("snack") { return L("Snack", "加餐") }
-        if t.contains("吃了") || t.contains("吃饭") || t.contains("吃的") || t.contains("ate ") { return TodayView.mealNow }
+        if t.contains("吃了") || t.contains("吃饭") || t.contains("吃的") || t.contains("ate ") { return TodayView.mealName(at: time) }
         return nil
     }
 
@@ -145,8 +145,10 @@ struct TodayView: View {
                                                     ("😐", L("Okay", "一般"), 0), ("🙂", L("Good", "不错"), 0.45), ("😄", L("Great", "很好"), 0.9)]
     static let checkins = [L("Woke up", "起床"), L("Took meds", "吃药"), L("Went outside", "出门晒太阳"), L("Exercised", "运动"), L("Going to bed", "准备睡")]
 
-    static var mealNow: String {
-        switch Calendar.current.component(.hour, from: Date()) {
+    static var mealNow: String { mealName(at: Date()) }
+
+    static func mealName(at time: Date) -> String {
+        switch Calendar.current.component(.hour, from: time) {
         case 5..<10: return L("Breakfast", "早饭")
         case 10..<15: return L("Lunch", "午饭")
         case 16..<21: return L("Dinner", "晚饭")

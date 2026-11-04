@@ -116,16 +116,15 @@ final class Sync {
     }
 
     /// Save one glass of water to Health; returns the sample's id so the Today screen can undo it.
-    func logWater(ml: Double) async -> UUID? {
-        let now = Date()
+    func logWater(ml: Double, at now: Date = Date()) async -> UUID? {
         let sample = HKQuantitySample(type: HKQuantityType(.dietaryWater), quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml), start: now, end: now)
         do { try await store.save(sample); return sample.uuid } catch { return nil }
     }
 
     /// Save a momentary mood (valence −1…1) to Health → State of Mind (iOS 18+).
-    func logMood(valence: Double) async -> UUID? {
+    func logMood(valence: Double, at time: Date = Date()) async -> UUID? {
         guard #available(iOS 18.0, *) else { return nil }
-        let m = HKStateOfMind(date: Date(), kind: .momentaryEmotion, valence: valence, labels: [], associations: [])
+        let m = HKStateOfMind(date: time, kind: .momentaryEmotion, valence: valence, labels: [], associations: [])
         do { try await store.save(m); return m.uuid } catch { return nil }
     }
 

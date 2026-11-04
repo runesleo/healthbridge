@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             task.expirationHandler = { work.cancel(); task.setTaskCompleted(success: false) }
         }
         Sync.shared.startObservers()
+        WatchLink.shared.start()
         Sync.schedule()
         return true
     }
