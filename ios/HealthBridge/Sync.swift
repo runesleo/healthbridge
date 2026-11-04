@@ -77,6 +77,15 @@ final class Sync {
         let iso = ISO8601DateFormatter(); iso.timeZone = .current
         if let s0 = asleep.map(\.startDate).min() { out["sleep_start"] = iso.string(from: max(s0, from)) }
         if let e0 = asleep.map(\.endDate).max() { out["sleep_end"] = iso.string(from: min(e0, to)) }
+        // Times awake between falling asleep and the final wake-up (each merged stretch counts once).
+        if let s0 = asleep.map(\.startDate).min(), let e0 = asleep.map(\.endDate).max() {
+            let awake = samples.filter { $0.value == HKCategoryValueSleepAnalysis.awake.rawValue && $0.startDate >= s0 && $0.endDate <= e0 }
+                .sorted { $0.startDate < $1.startDate }
+            var count = 0, lastEnd: Date?
+            for a in awake { if let e = lastEnd, a.startDate <= e { lastEnd = max(e, a.endDate) } else { count += 1; lastEnd = a.endDate } }
+            out["awake_count"] = Double(count)
+            if !awake.isEmpty { out["awake_min"] = merged(awake) }
+        }
         let deep = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
         let rem = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
         if !deep.isEmpty { out["deep_min"] = merged(deep) }  // omitted when the source has no stage data
@@ -102,8 +111,15 @@ final class Sync {
 
     func authorize() async -> String {
         guard HKHealthStore.isHealthDataAvailable() else { return L("Health data is not available on this device", "此设备没有健康数据") }
-        do { try await store.requestAuthorization(toShare: [], read: readTypes); startObservers(); return L("Authorization requested", "已请求授权") }
+        do { try await store.requestAuthorization(toShare: [HKQuantityType(.dietaryWater)], read: readTypes); startObservers(); return L("Authorization requested", "已请求授权") }
         catch { return L("Authorization failed: ", "授权失败：") + error.localizedDescription }
+    }
+
+    /// Save one glass of water to Health (used by the "Log a glass of water" shortcut).
+    func logWater(ml: Double) async -> Bool {
+        let now = Date()
+        let sample = HKQuantitySample(type: HKQuantityType(.dietaryWater), quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml), start: now, end: now)
+        do { try await store.save(sample); return true } catch { return false }
     }
 
     func startObservers() {
