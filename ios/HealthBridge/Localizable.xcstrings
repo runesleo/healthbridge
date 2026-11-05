@@ -1,0 +1,46 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "Go ahead, I'll write it all down.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说吧，我全都记下来"
+          }
+        }
+      }
+    },
+    "Saved: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记下了：%@"
+          }
+        }
+      }
+    },
+    "What to log": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要记的内容"
+          }
+        }
+      }
+    },
+    "Quick log": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "口述记录"
+          }
+        }
+      }
+    }
+  }
+}

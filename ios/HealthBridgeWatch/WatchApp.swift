@@ -34,12 +34,12 @@ struct WatchQuickLogIntent: AppIntent {
     static var description = IntentDescription("Log water, a meal, a check-in or a note in your own words.")
     static var openAppWhenRun = false
 
-    @Parameter(title: "What to log", requestValueDialog: "What do you want to log?")
+    @Parameter(title: "What to log", requestValueDialog: "Go ahead, I'll write it all down.")
     var text: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         PhoneLink.shared.send("quick", text)
-        return .result(dialog: "OK")
+        return .result(dialog: "Saved: \(text)")
     }
 }
 
@@ -62,10 +62,10 @@ struct WatchTodayView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            TextFieldLink(prompt: Text(L("e.g. had noodles, two glasses of water", "比如：吃了牛肉面，喝了两杯水"))) {
+            TextFieldLink(prompt: Text(L("Say anything — it is all kept, AI sorts it tonight", "想到什么说什么，全都记下，晚上 AI 整理"))) {
                 VStack(spacing: 6) {
                     Image(systemName: "mic.fill").font(.system(size: 40))
-                    Text(L("Say it", "说一句")).font(.headline)
+                    Text(L("Voice note", "口述记录")).font(.headline)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } onSubmit: { t in

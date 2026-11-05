@@ -34,7 +34,7 @@ struct QuickLogIntent: AppIntent {
     static var description = IntentDescription("Log water, a meal, a check-in or a note in your own words.")
     static var openAppWhenRun = false
 
-    @Parameter(title: "What to log", requestValueDialog: "What do you want to log?")
+    @Parameter(title: "What to log", requestValueDialog: "Go ahead, I'll write it all down.")
     var text: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
