@@ -11,3 +11,5 @@ data/
 __pycache__/
 ios/HealthBridge/Info.plist
 ios/HealthBridge/HealthBridge.entitlements
+ios/HealthBridgeWatch/Info.plist
+ios/HealthBridgeWatchWidget/Info.plist
