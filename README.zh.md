@@ -11,6 +11,7 @@
 ## 你能得到什么
 
 - **每天自动导出**：步数、活动消耗、锻炼分钟、心率（平均/最高）、静息心率、HRV、步行心率、睡眠（总时长/深睡/REM）、血氧、呼吸频率、最大摄氧量、血压、体重，以及每一次训练的类型、时长、消耗、心率和距离
+- **每日作息**：每天的文件里有入睡和起床时间、夜里醒来、喝水、日照时长和心情（「心理状态」，iOS 18+）；手机上的「今天」页和 **Apple Watch** 口述记录，点一下或说一句就能记喝水、吃饭、心情和打卡
 - **完整历史**：点一下就把「健康」里所有历史补传过来，一直回到你有记录的第一天
 - **不用管它**：手表同步了新训练，iOS 会在后台叫醒 App 自动发；Mac 按天存成 JSON
 - **一份能直接看的档案**：Markdown 文件，按年、按月汇总，外加每次训练的明细，中英文可选
@@ -47,7 +48,7 @@ Apple Watch ──同步──▶ iPhone「健康」──▶ HealthBridge App �
 - 一台有「健康」数据的 iPhone（心率和训练需要 Apple Watch）
 - 同一 Wi-Fi 下的一台 Mac：装好 **Xcode**、`xcodegen`（`brew install xcodegen`）、Python 3.9+ 和 `cryptography`
 - 在 Xcode 里登录 Apple ID。免费账号能用，但每 7 天要重装一次；付费开发者账号（99 美元/年）一次签一年
-- **隐私：** 数据不出家里的网络。接收端只收用你的密钥加密过的数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600）和不进 git 的 `ios/HealthBridge/Config.swift`
+- **隐私：** 健康数据不出家里的网络。接收端只收用你的密钥加密过的数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600）和不进 git 的 `ios/HealthBridge/Config.swift`。手表口述的录音在 iPhone 本机转文字；「今天」页拍的餐照存进你的照片图库（开了 iCloud 照片也会同步上去）
 
 ## 快速开始
 
