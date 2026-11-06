@@ -130,21 +130,29 @@ enum QuickParse {
     static func water(_ raw: String) -> [Double]? {
         var t = raw
         for w in notWater { t = t.replacingOccurrences(of: w, with: "") }
+        let clauses = t.split(whereSeparator: { "，,。.；;！!？?\n".contains($0) }).map(String.init)
+        let drinks = { (c: String) in (c.contains("喝") && c.contains("水")) || c.contains("water") }
+        let amount = { (c: String) in c.range(of: mlPattern, options: .regularExpression) != nil || c.range(of: cupPattern, options: .regularExpression) != nil }
         var out: [Double] = []
-        for c in t.split(whereSeparator: { "，,。.；;！!？?\n".contains($0) }).map(String.init)
-        where ((c.contains("喝") && c.contains("水")) || c.contains("water")) && !didNotDrink.contains(where: c.contains) {
-            if let r = c.range(of: #"(\d+)\s*(ml|毫升)"#, options: .regularExpression), let n = Double(c[r].filter(\.isNumber)) {
+        for (i, c) in clauses.enumerated() where drinks(c) && !didNotDrink.contains(where: c.contains) {
+            // Dictation adds commas: in "喝水，500毫升" the amount is the next clause.
+            var s = c
+            if !amount(c), i + 1 < clauses.count, !drinks(clauses[i + 1]), amount(clauses[i + 1]) { s = clauses[i + 1] }
+            if let r = s.range(of: mlPattern, options: .regularExpression), let n = Double(s[r].filter(\.isNumber)) {
                 if n > 0, n <= 5000 { out.append(n) }
             } else {
-                out += Array(repeating: TodayView.cupML, count: cups(c))
+                out += Array(repeating: TodayView.cupML, count: cups(s))
             }
         }
         return out.isEmpty ? nil : out
     }
 
+    static let mlPattern = #"(\d+)\s*(ml|毫升)"#
+    static let cupPattern = #"(\d+|[一两二三四五六])\s*(杯|瓶|glass|cup)"#
+
     /// Glasses in a line; a bottle counts as two, whether written "1瓶" or "一瓶".
     static func cups(_ t: String) -> Int {
-        if let r = t.range(of: #"(\d+|[一两二三四五六])\s*(杯|瓶|glass|cup)"#, options: .regularExpression) {
+        if let r = t.range(of: cupPattern, options: .regularExpression) {
             let s = t[r]
             let n = Int(s.filter(\.isNumber)) ?? s.first.flatMap { numbers[$0] } ?? 1
             return min(max(n, 1), 8) * (s.contains("瓶") ? 2 : 1)
