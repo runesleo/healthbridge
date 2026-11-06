@@ -40,6 +40,8 @@ targets:
     type: application
     platform: watchOS
     sources: [HealthBridgeWatch]
+    dependencies:
+      - target: HealthBridgeWatchWidget
     info:
       path: HealthBridgeWatch/Info.plist
       properties:
@@ -51,3 +53,18 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         PRODUCT_BUNDLE_IDENTIFIER: me.leolabs.HealthBridge.watchkitapp
+  HealthBridgeWatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources: [HealthBridgeWatchWidget]
+    info:
+      path: HealthBridgeWatchWidget/Info.plist
+      properties:
+        CFBundleDisplayName: HealthBridge
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        PRODUCT_BUNDLE_IDENTIFIER: me.leolabs.HealthBridge.watchkitapp.widget
