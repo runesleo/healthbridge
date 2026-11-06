@@ -125,15 +125,21 @@ enum QuickParse {
     static let didNotDrink = ["没喝", "没有喝", "不喝", "别喝", "忘了喝", "忘记喝", "didn't drink", "no water"]
 
     /// Water in a line, as the amounts to save: one per glass, or the exact ml when given.
-    /// nil when there's no water in it, or it says they didn't drink ("还没喝水").
+    /// Read clause by clause, so "喝了500ml水，还没喝咖啡" still counts the water and "还没喝水" doesn't.
+    /// nil when there's none. 0 ml or more than 5 litres isn't logged as water (the line is still kept as a note).
     static func water(_ raw: String) -> [Double]? {
         var t = raw
         for w in notWater { t = t.replacingOccurrences(of: w, with: "") }
-        guard (t.contains("喝") && t.contains("水")) || t.contains("water"),
-              !didNotDrink.contains(where: t.contains) else { return nil }
-        if let r = t.range(of: #"(\d+)\s*(ml|毫升)"#, options: .regularExpression),
-           let n = Double(t[r].filter(\.isNumber)), n > 0 { return [min(n, 3000)] }
-        return Array(repeating: TodayView.cupML, count: cups(t))
+        var out: [Double] = []
+        for c in t.split(whereSeparator: { "，,。.；;！!？?\n".contains($0) }).map(String.init)
+        where ((c.contains("喝") && c.contains("水")) || c.contains("water")) && !didNotDrink.contains(where: c.contains) {
+            if let r = c.range(of: #"(\d+)\s*(ml|毫升)"#, options: .regularExpression), let n = Double(c[r].filter(\.isNumber)) {
+                if n > 0, n <= 5000 { out.append(n) }
+            } else {
+                out += Array(repeating: TodayView.cupML, count: cups(c))
+            }
+        }
+        return out.isEmpty ? nil : out
     }
 
     /// Glasses in a line; a bottle counts as two, whether written "1瓶" or "一瓶".

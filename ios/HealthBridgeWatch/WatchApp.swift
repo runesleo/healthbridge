@@ -19,27 +19,29 @@ final class PhoneLink: NSObject, WCSessionDelegate {
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
     /// Queued user info survives the phone being out of reach; it is delivered when the phone app runs.
-    func send(_ kind: String, _ text: String) async {
+    /// false when the link to the iPhone app never came up, so nothing was queued.
+    func send(_ kind: String, _ text: String) async -> Bool {
         let time = Date().timeIntervalSince1970
-        remember(text)
-        await activated()
+        guard await activated(within: 5) else { return false }
         WCSession.default.transferUserInfo(["kind": kind, "text": text, "time": time])
+        remember(text)
+        return true
     }
     /// Recorded audio goes the same queued way; the phone transcribes it.
     func sendAudio(_ url: URL, at time: Date) {
         remember(L("voice note", "语音") + " · " + L("phone is turning it into text", "手机转文字中"))
         Task {
-            await activated()
+            _ = await activated(within: 60)  // best effort after that; nothing else can carry it
             WCSession.default.transferFile(url, metadata: ["kind": "audio", "time": time.timeIntervalSince1970])
         }
     }
-    /// Transfers started before the session has activated are dropped; a cold launch takes a moment. Waits up to 5 s.
-    private func activated() async {
-        var tries = 0
-        while WCSession.isSupported(), WCSession.default.activationState != .activated, tries < 50 {
-            tries += 1
+    /// Transfers started before the session has activated are dropped; a cold launch takes a moment.
+    private func activated(within seconds: Int) async -> Bool {
+        guard WCSession.isSupported() else { return false }
+        for _ in 0..<(seconds * 10) where WCSession.default.activationState != .activated {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
+        return WCSession.default.activationState == .activated
     }
     private func remember(_ text: String) {
         UserDefaults.standard.set(["text": text, "time": Date().timeIntervalSince1970], forKey: "lastLine")
@@ -61,7 +63,9 @@ struct WatchQuickLogIntent: AppIntent {
     var text: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        await PhoneLink.shared.send("quick", text)
+        guard await PhoneLink.shared.send("quick", text) else {
+            return .result(dialog: "Couldn't reach the iPhone app. Open HealthBridge on the watch and try again.")
+        }
         return .result(dialog: "Saved: \(text)")
     }
 }

@@ -2,6 +2,16 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "Couldn't reach the iPhone app. Open HealthBridge on the watch and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没连上 iPhone 上的 App，在手表上打开 HealthBridge 再试一次"
+          }
+        }
+      }
+    },
     "Go ahead, I'll write it all down.": {
       "localizations": {
         "zh-Hans": {
