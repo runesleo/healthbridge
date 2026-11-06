@@ -58,12 +58,14 @@ final class DailyLog: ObservableObject {
         guard !text.isEmpty else { return "" }
         var done: [String] = []
         let t = text.lowercased()
-        if (t.contains("喝") && t.contains("水")) || t.contains("water") {
-            let cups = QuickParse.cups(t)
-            for _ in 0..<cups {
-                if let id = await Sync.shared.logWater(ml: TodayView.cupML, at: time) { append("water", "\(Int(TodayView.cupML)) ml", healthID: id, at: time) }
+        if let amounts = QuickParse.water(t) {
+            for ml in amounts {
+                // kept even when Health refuses the sample; the sync then sends it from here (see unsaved(for:))
+                let id = await Sync.shared.logWater(ml: ml, at: time)
+                append("water", "\(Int(ml)) ml", healthID: id, at: time)
             }
-            done.append(L("water ×\(cups)", "喝水 \(cups) 杯"))
+            let total = Int(amounts.reduce(0, +))
+            done.append(L("water \(total) ml", "喝水 \(total) ml"))
         }
         if let meal = QuickParse.meal(t, at: time) {
             append("meal", "\(meal)：\(text)", at: time)
@@ -93,19 +95,53 @@ final class DailyLog: ObservableObject {
         }
         return out
     }
+
+    /// Water and moods of a day that Health didn't save (write access off, or moods before iOS 18).
+    /// They would otherwise never reach the Mac, which reads water and moods back from Health.
+    nonisolated static func unsaved(for day: Date) -> (waterML: Double, moods: [[String: Any]]) {
+        guard let d = UserDefaults.standard.data(forKey: "dailyLog"), let xs = try? JSONDecoder().decode([LogEntry].self, from: d) else { return (0, []) }
+        let cal = Calendar.current
+        let iso = ISO8601DateFormatter(); iso.timeZone = .current
+        var ml = 0.0, moods: [[String: Any]] = []
+        for e in xs where e.healthID == nil && cal.isDate(e.time, inSameDayAs: day) {
+            if e.kind == "water" { ml += e.waterML ?? TodayView.cupML }
+            if e.kind == "mood", let v = TodayView.moods.first(where: { e.label.hasPrefix($0.0) })?.2 {
+                moods.append(["time": iso.string(from: e.time), "kind": "moment", "valence": v])
+            }
+        }
+        return (ml, moods)
+    }
+}
+
+extension LogEntry {
+    /// "250 ml" / "330 ml ⌚︎" → 250 / 330
+    var waterML: Double? { Double(label.prefix(while: \.isNumber)) }
 }
 
 /// Keyword rules for the quick-log line. Simple on purpose: the raw text always reaches the Mac as a note.
 enum QuickParse {
     static let numbers: [Character: Int] = ["一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6]
+    static let notWater = ["水果", "水饺", "水煮", "汽水"]
+    static let didNotDrink = ["没喝", "没有喝", "不喝", "别喝", "忘了喝", "忘记喝", "didn't drink", "no water"]
 
-    static func cups(_ t: String) -> Int {
+    /// Water in a line, as the amounts to save: one per glass, or the exact ml when given.
+    /// nil when there's no water in it, or it says they didn't drink ("还没喝水").
+    static func water(_ raw: String) -> [Double]? {
+        var t = raw
+        for w in notWater { t = t.replacingOccurrences(of: w, with: "") }
+        guard (t.contains("喝") && t.contains("水")) || t.contains("water"),
+              !didNotDrink.contains(where: t.contains) else { return nil }
         if let r = t.range(of: #"(\d+)\s*(ml|毫升)"#, options: .regularExpression),
-           let n = Int(t[r].filter(\.isNumber)) { return max(1, Int((Double(n) / TodayView.cupML).rounded())) }
+           let n = Double(t[r].filter(\.isNumber)), n > 0 { return [min(n, 3000)] }
+        return Array(repeating: TodayView.cupML, count: cups(t))
+    }
+
+    /// Glasses in a line; a bottle counts as two, whether written "1瓶" or "一瓶".
+    static func cups(_ t: String) -> Int {
         if let r = t.range(of: #"(\d+|[一两二三四五六])\s*(杯|瓶|glass|cup)"#, options: .regularExpression) {
             let s = t[r]
-            if let n = Int(s.filter(\.isNumber)) { return min(max(n, 1), 8) }
-            if let c = s.first, let n = numbers[c] { return t.contains("瓶") ? n * 2 : n }
+            let n = Int(s.filter(\.isNumber)) ?? s.first.flatMap { numbers[$0] } ?? 1
+            return min(max(n, 1), 8) * (s.contains("瓶") ? 2 : 1)
         }
         return t.contains("瓶") ? 2 : 1
     }
@@ -140,8 +176,8 @@ struct TodayView: View {
     @State private var quickResult = ""
     @FocusState private var typing: Bool
 
-    static let cupML = 250.0
-    static let moods: [(String, String, Double)] = [("😣", L("Awful", "很差"), -0.9), ("🙁", L("Low", "不太好"), -0.45),
+    nonisolated static let cupML = 250.0
+    nonisolated static let moods: [(String, String, Double)] = [("😣", L("Awful", "很差"), -0.9), ("🙁", L("Low", "不太好"), -0.45),
                                                     ("😐", L("Okay", "一般"), 0), ("🙂", L("Good", "不错"), 0.45), ("😄", L("Great", "很好"), 0.9)]
     static let checkins = [L("Woke up", "起床"), L("Took meds", "吃药"), L("Went outside", "出门晒太阳"), L("Exercised", "运动"), L("Going to bed", "准备睡")]
 
@@ -164,7 +200,9 @@ struct TodayView: View {
 
     var body: some View {
         let today = log.today()
-        let cups = today.filter { $0.kind == "water" }.count
+        let water = today.filter { $0.kind == "water" }
+        let cups = water.count
+        let waterML = Int(water.reduce(0) { $0 + ($1.waterML ?? Self.cupML) })
         NavigationStack {
             List {
                 Section {
@@ -189,7 +227,7 @@ struct TodayView: View {
                             Image(systemName: "drop.fill").foregroundStyle(.blue)
                             Text(L("I drank a glass", "喝了一杯"))
                             Spacer()
-                            Text(L("\(cups) today · \(cups * Int(Self.cupML)) ml", "今天 \(cups) 杯 · \(cups * Int(Self.cupML)) ml")).foregroundStyle(.secondary)
+                            Text(L("\(cups) today · \(waterML) ml", "今天 \(cups) 杯 · \(waterML) ml")).foregroundStyle(.secondary)
                         }
                     }
                 }

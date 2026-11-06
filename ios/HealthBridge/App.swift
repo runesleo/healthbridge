@@ -5,12 +5,20 @@ import BackgroundTasks
 @main
 struct HealthBridgeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
             TabView {
                 TodayView().tabItem { Label(L("Today", "今天"), systemImage: "checklist") }
                 ContentView().tabItem { Label(L("Sync", "同步"), systemImage: "arrow.triangle.2.circlepath") }
             }
+        }
+        // Opening the app syncs and retries waiting voice notes, whichever tab is showing
+        // (a tab's own modifiers only run once that tab has been opened).
+        .onChange(of: phase) { _, p in
+            guard p == .active else { return }
+            VoiceNotes.retryPending()
+            Task { await Sync.shared.run(reason: "open") }
         }
     }
 }
@@ -29,8 +37,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
-    func applicationDidBecomeActive(_ application: UIApplication) { VoiceNotes.retryPending() }
-
     // Observer or background task fired while locked: catch up as soon as the phone is unlocked.
     func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {
         Task { await Sync.shared.run(reason: "unlock") }
@@ -39,7 +45,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 struct ContentView: View {
     @AppStorage("endpoint") var endpoint = Sync.defaultEndpoint
-    @Environment(\.scenePhase) private var phase
     @State private var status = UserDefaults.standard.string(forKey: "lastStatus") ?? L("Not synced yet", "未同步")
     @State private var summary = ""
     var body: some View {
@@ -59,8 +64,6 @@ struct ContentView: View {
                 Section(L("Status", "状态")) { Text(status); if !summary.isEmpty { Text(summary).font(.footnote.monospaced()) } }
             }.navigationTitle("HealthBridge")
         }
-        .onChange(of: phase) { _, p in
-            if p == .active { Task { status = await Sync.shared.run(reason: "open").0 } }
-        }
+        .onAppear { status = UserDefaults.standard.string(forKey: "lastStatus") ?? status }  // includes the sync on opening
     }
 }

@@ -73,13 +73,23 @@ enum VoiceNotes {
         for f in files where f.pathExtension == "m4a" { Task { await transcribe(f) } }
     }
 
+    // A note can arrive while the app is opening and retrying; each file is transcribed by one task at a time.
+    private static let lock = NSLock()
+    private static var busy = Set<String>()
+    private static func claim(_ url: URL) -> Bool { lock.lock(); defer { lock.unlock() }; return busy.insert(url.lastPathComponent).inserted }
+    private static func release(_ url: URL) { lock.lock(); busy.remove(url.lastPathComponent); lock.unlock() }
+
     static func transcribe(_ url: URL) async {
-        guard SFSpeechRecognizer.authorizationStatus() == .authorized,
-              let rec = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN")), rec.isAvailable else { return }
+        guard claim(url) else { return }
+        defer { release(url) }
+        // On this iPhone only, never a speech server. Offline recognition not ready yet → keep the file for the next try.
+        guard FileManager.default.fileExists(atPath: url.path),
+              SFSpeechRecognizer.authorizationStatus() == .authorized,
+              let rec = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN")), rec.isAvailable, rec.supportsOnDeviceRecognition else { return }
         let req = SFSpeechURLRecognitionRequest(url: url)
         req.shouldReportPartialResults = false
         req.addsPunctuation = true
-        if rec.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+        req.requiresOnDeviceRecognition = true
         let text: String? = await withCheckedContinuation { c in
             var done = false
             rec.recognitionTask(with: req) { result, error in
@@ -90,8 +100,7 @@ enum VoiceNotes {
         }
         guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
         let time = Date(timeIntervalSince1970: Double(url.deletingPathExtension().lastPathComponent) ?? Date().timeIntervalSince1970)
+        if !t.isEmpty { await DailyLog.shared.quick("🎙 " + t, at: time) }  // saved before the audio goes
         try? FileManager.default.removeItem(at: url)
-        guard !t.isEmpty else { return }
-        await MainActor.run { _ = Task { await DailyLog.shared.quick("🎙 " + t, at: time) } }
     }
 }

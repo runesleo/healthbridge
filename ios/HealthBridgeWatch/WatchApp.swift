@@ -8,6 +8,7 @@ import AVFoundation
 /// "Done" queues the audio to the iPhone, which turns it into text and logs it like a quick-log line.
 @main
 struct HealthBridgeWatchApp: App {
+    init() { _ = PhoneLink.shared }  // start activating at launch, well before the first note is sent
     var body: some Scene { WindowGroup { WatchTodayView() } }
 }
 
@@ -18,14 +19,27 @@ final class PhoneLink: NSObject, WCSessionDelegate {
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
     /// Queued user info survives the phone being out of reach; it is delivered when the phone app runs.
-    func send(_ kind: String, _ text: String) {
-        WCSession.default.transferUserInfo(["kind": kind, "text": text, "time": Date().timeIntervalSince1970])
+    func send(_ kind: String, _ text: String) async {
+        let time = Date().timeIntervalSince1970
         remember(text)
+        await activated()
+        WCSession.default.transferUserInfo(["kind": kind, "text": text, "time": time])
     }
     /// Recorded audio goes the same queued way; the phone transcribes it.
     func sendAudio(_ url: URL, at time: Date) {
-        WCSession.default.transferFile(url, metadata: ["kind": "audio", "time": time.timeIntervalSince1970])
         remember(L("voice note", "语音") + " · " + L("phone is turning it into text", "手机转文字中"))
+        Task {
+            await activated()
+            WCSession.default.transferFile(url, metadata: ["kind": "audio", "time": time.timeIntervalSince1970])
+        }
+    }
+    /// Transfers started before the session has activated are dropped; a cold launch takes a moment. Waits up to 5 s.
+    private func activated() async {
+        var tries = 0
+        while WCSession.isSupported(), WCSession.default.activationState != .activated, tries < 50 {
+            tries += 1
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
     }
     private func remember(_ text: String) {
         UserDefaults.standard.set(["text": text, "time": Date().timeIntervalSince1970], forKey: "lastLine")
@@ -47,7 +61,7 @@ struct WatchQuickLogIntent: AppIntent {
     var text: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        PhoneLink.shared.send("quick", text)
+        await PhoneLink.shared.send("quick", text)
         return .result(dialog: "Saved: \(text)")
     }
 }

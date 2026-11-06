@@ -210,7 +210,9 @@ final class Sync {
         }
         p["workouts"] = ws
         for (k, v) in DailyLog.payload(for: start) { p[k] = v }
-        let ms = await moods(start, end)
+        let local = DailyLog.unsaved(for: start)
+        if local.waterML > 0 { p["water_ml"] = (p["water_ml"] as? Double ?? 0) + local.waterML }
+        let ms = (await moods(start, end) + local.moods).sorted { ($0["time"] as? String ?? "") < ($1["time"] as? String ?? "") }
         if !ms.isEmpty { p["moods"] = ms }
         return p
     }
