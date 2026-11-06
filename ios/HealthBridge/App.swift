@@ -24,9 +24,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         }
         Sync.shared.startObservers()
         WatchLink.shared.start()
+        VoiceNotes.authorize()
         Sync.schedule()
         return true
     }
+
+    func applicationDidBecomeActive(_ application: UIApplication) { VoiceNotes.retryPending() }
 
     // Observer or background task fired while locked: catch up as soon as the phone is unlocked.
     func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {

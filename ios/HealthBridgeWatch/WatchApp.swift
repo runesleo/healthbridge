@@ -2,9 +2,10 @@ import SwiftUI
 import WatchKit
 import WatchConnectivity
 import AppIntents
+import AVFoundation
 
-/// Watch side: one thing only — say a line. It is queued to the iPhone, which reads it like a quick-log line there
-/// (water and mood into Apple Health, meals / check-ins / the note itself into the day's sync).
+/// Watch side: one thing only — talk. Opening the app (or tapping the watch-face mic) starts recording at once;
+/// "Done" queues the audio to the iPhone, which turns it into text and logs it like a quick-log line.
 @main
 struct HealthBridgeWatchApp: App {
     var body: some Scene { WindowGroup { WatchTodayView() } }
@@ -19,6 +20,14 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     /// Queued user info survives the phone being out of reach; it is delivered when the phone app runs.
     func send(_ kind: String, _ text: String) {
         WCSession.default.transferUserInfo(["kind": kind, "text": text, "time": Date().timeIntervalSince1970])
+        remember(text)
+    }
+    /// Recorded audio goes the same queued way; the phone transcribes it.
+    func sendAudio(_ url: URL, at time: Date) {
+        WCSession.default.transferFile(url, metadata: ["kind": "audio", "time": time.timeIntervalSince1970])
+        remember(L("voice note", "语音") + " · " + L("phone is turning it into text", "手机转文字中"))
+    }
+    private func remember(_ text: String) {
         UserDefaults.standard.set(["text": text, "time": Date().timeIntervalSince1970], forKey: "lastLine")
     }
     func session(_ s: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {}
@@ -50,9 +59,66 @@ struct WatchShortcuts: AppShortcutsProvider {
     }
 }
 
+@MainActor
+final class Recorder: ObservableObject {
+    enum State { case idle, recording, sent, denied }
+    @Published var state: State = .idle
+    @Published var seconds = 0
+    private var rec: AVAudioRecorder?
+    private var started = Date()
+    private var timer: Timer?
+    static let maxSeconds = 300
+
+    func start() {
+        guard state != .recording else { return }
+        AVAudioApplication.requestRecordPermission { ok in
+            Task { @MainActor in ok ? self.begin() : (self.state = .denied) }
+        }
+    }
+
+    private func begin() {
+        let s = AVAudioSession.sharedInstance()
+        try? s.setCategory(.record, mode: .default)
+        try? s.setActive(true)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-\(Int(Date().timeIntervalSince1970)).m4a")
+        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16000,
+                                       AVNumberOfChannelsKey: 1, AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue]
+        guard let r = try? AVAudioRecorder(url: url, settings: settings), r.record() else { state = .idle; return }
+        rec = r; started = Date(); seconds = 0; state = .recording
+        WKInterfaceDevice.current().play(.start)
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in
+                self.seconds += 1
+                if self.seconds >= Recorder.maxSeconds { self.finish() }
+            }
+        }
+    }
+
+    func finish() {
+        guard let r = rec, state == .recording else { return }
+        r.stop(); timer?.invalidate(); rec = nil
+        try? AVAudioSession.sharedInstance().setActive(false)
+        if seconds >= 1 {
+            PhoneLink.shared.sendAudio(r.url, at: started)
+            WKInterfaceDevice.current().play(.success)
+            state = .sent
+        } else {
+            state = .idle
+        }
+    }
+
+    func cancel() {
+        guard let r = rec else { state = .idle; return }
+        r.stop(); r.deleteRecording(); timer?.invalidate(); rec = nil
+        try? AVAudioSession.sharedInstance().setActive(false)
+        state = .idle
+    }
+}
+
 struct WatchTodayView: View {
+    @StateObject private var r = Recorder()
     @State private var last = ""
-    @Environment(\.scenePhase) private var phase
+    @State private var launched = false
 
     private func refresh() {
         guard let d = UserDefaults.standard.dictionary(forKey: "lastLine"), let t = d["text"] as? String,
@@ -62,26 +128,38 @@ struct WatchTodayView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            TextFieldLink(prompt: Text(L("Say anything — it is all kept, AI sorts it tonight", "想到什么说什么，全都记下，晚上 AI 整理"))) {
-                VStack(spacing: 6) {
-                    Image(systemName: "mic.fill").font(.system(size: 40))
-                    Text(L("Voice note", "口述记录")).font(.headline)
+            switch r.state {
+            case .recording:
+                Text(L("Listening…", "在听，说吧")).font(.headline)
+                Text(String(format: "%d:%02d", r.seconds / 60, r.seconds % 60)).font(.title2.monospacedDigit()).foregroundStyle(.red)
+                Button { r.finish(); refresh() } label: {
+                    Label(L("Done", "说完了"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                }.tint(.green)
+                Button(L("Cancel", "不要了"), role: .cancel) { r.cancel() }.font(.footnote)
+            case .sent:
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 40)).foregroundStyle(.green)
+                Text(L("Saved", "记下了")).font(.headline)
+                Button { r.start() } label: { Label(L("One more", "再说一条"), systemImage: "mic.fill") }
+            case .denied:
+                Text(L("Allow the microphone in Settings → Privacy → Microphone.", "请在手表「设置 → 隐私与安全性 → 麦克风」里允许 HealthBridge。"))
+                    .font(.footnote).multilineTextAlignment(.center)
+            case .idle:
+                Button { r.start() } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "mic.fill").font(.system(size: 40))
+                        Text(L("Voice note", "口述记录")).font(.headline)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }.tint(.blue)
+                if !last.isEmpty {
+                    Text(L("Last: ", "上一条：") + last).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } onSubmit: { t in
-                let s = t.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !s.isEmpty else { return }
-                PhoneLink.shared.send("quick", s)
-                WKInterfaceDevice.current().play(.success)
-                refresh()
-            }
-            .tint(.blue)
-            if !last.isEmpty {
-                Text(L("Last: ", "上一条：") + last).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
             }
         }
         .padding(.horizontal, 4)
-        .onAppear(perform: refresh)
-        .onChange(of: phase) { _, p in if p == .active { refresh() } }
+        .onAppear {
+            refresh()
+            if !launched { launched = true; r.start() }   // cold launch = start talking right away
+        }
+        .onOpenURL { _ in if r.state != .recording { r.start() } }   // watch-face mic
     }
 }

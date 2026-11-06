@@ -27,6 +27,7 @@ targets:
         NSHealthUpdateUsageDescription: Saves the water and moods you log on the Today screen to Apple Health.
         NSCameraUsageDescription: Takes a photo of your meal when you tap Take a photo.
         NSPhotoLibraryAddUsageDescription: Saves meal photos to your Photos library so your Mac can tell when you ate.
+        NSSpeechRecognitionUsageDescription: Turns the voice notes you record on Apple Watch into text, on this iPhone.
         NSLocalNetworkUsageDescription: Sends your encrypted health data to your own Mac on the same Wi-Fi.
         NSAppTransportSecurity: {NSAllowsLocalNetworking: true}
         UIBackgroundModes: [fetch, processing]
@@ -48,6 +49,9 @@ targets:
         CFBundleDisplayName: HealthBridge
         WKApplication: true
         WKCompanionAppBundleIdentifier: me.leolabs.HealthBridge
+        NSMicrophoneUsageDescription: Records the voice note you start, so your iPhone can turn it into text.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [healthbridge]
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
