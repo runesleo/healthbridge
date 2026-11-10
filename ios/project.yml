@@ -9,7 +9,7 @@ configFiles:
 settings:
   base:
     MARKETING_VERSION: "0.0.1"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "2"
 targets:
   HealthBridge:
     type: application

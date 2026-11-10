@@ -4,7 +4,7 @@ import AppIntents
 /// (a time of day, or joining the home Wi-Fi) can sync without opening HealthBridge.
 struct SyncHealthIntent: AppIntent {
     static var title: LocalizedStringResource = "Sync health data"
-    static var description = IntentDescription("Send the days since the last sync to your Mac.")
+    static var description = IntentDescription("Send the days since the last sync to your computer.")
     static var openAppWhenRun = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -16,7 +16,7 @@ struct SyncHealthIntent: AppIntent {
 /// "Log a glass of water" — one tap from the lock screen, Action button, watch or Siri.
 struct LogWaterIntent: AppIntent {
     static var title: LocalizedStringResource = "Log a glass of water"
-    static var description = IntentDescription("Add one glass (250 ml) of water to Apple Health.")
+    static var description = IntentDescription("Log one glass (250 ml) of water in Health.")
     static var openAppWhenRun = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
