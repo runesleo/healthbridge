@@ -48,7 +48,7 @@ targets:
       properties:
         CFBundleDisplayName: HealthBridge
         WKApplication: true
-        WKCompanionAppBundleIdentifier: me.leolabs.HealthBridge
+        WKCompanionAppBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER:base)
         NSMicrophoneUsageDescription: Records the voice note you start, so your iPhone can turn it into text.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [healthbridge]
@@ -56,7 +56,7 @@ targets:
       base:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
-        PRODUCT_BUNDLE_IDENTIFIER: me.leolabs.HealthBridge.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: $(inherited).watchkitapp
   HealthBridgeWatchWidget:
     type: app-extension
     platform: watchOS
@@ -71,4 +71,4 @@ targets:
       base:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
-        PRODUCT_BUNDLE_IDENTIFIER: me.leolabs.HealthBridge.watchkitapp.widget
+        PRODUCT_BUNDLE_IDENTIFIER: $(inherited).watchkitapp.widget
