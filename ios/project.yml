@@ -25,6 +25,8 @@ targets:
     info:
       path: HealthBridge/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: HealthBridge
         UILaunchScreen: {}
         NSHealthShareUsageDescription: Reads activity, workout distance, heart rate, HRV, sleep, blood oxygen, respiratory rate, VO2 max, blood pressure, weight, workouts, water, time in daylight and logged moods, and sends them encrypted to your own Mac only.
@@ -50,6 +52,8 @@ targets:
     info:
       path: HealthBridgeWatch/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: HealthBridge
         WKApplication: true
         WKCompanionAppBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER:base)
@@ -68,6 +72,8 @@ targets:
     info:
       path: HealthBridgeWatchWidget/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: HealthBridge
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
