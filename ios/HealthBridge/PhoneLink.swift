@@ -30,7 +30,7 @@ final class WatchLink: NSObject, WCSessionDelegate {
                 log.add("mood", "\(face?.0 ?? "") \(face?.1 ?? "") ⌚︎", healthID: id, at: time)
             case "meal": log.add("meal", TodayView.mealName(at: time) + " ⌚︎", at: time)
             case "checkin": log.add("checkin", text, at: time)
-            case "quick": await log.quick(text, at: time)
+            case "quick": WatchLink.shared.tellWatch(text, await log.quick(text, at: time), at: time)
             default: break
             }
         }
@@ -41,6 +41,15 @@ final class WatchLink: NSObject, WCSessionDelegate {
         let time = file.metadata?["time"] as? Double ?? Date().timeIntervalSince1970
         guard let dest = try? VoiceNotes.store(file.fileURL, time: time) else { return }
         Task { await VoiceNotes.transcribe(dest) }
+    }
+
+    /// Shows on the watch what a note became, so a misheard voice note is noticed right away.
+    /// Application context keeps only the latest line and reaches the watch app whenever it next runs.
+    func tellWatch(_ text: String, _ summary: String, at time: Date) {
+        let s = WCSession.default
+        guard WCSession.isSupported(), s.activationState == .activated, s.isPaired, s.isWatchAppInstalled else { return }
+        let line = summary.isEmpty ? text : text + " · " + summary
+        try? s.updateApplicationContext(["lastLine": line, "time": time.timeIntervalSince1970])
     }
 
     func session(_ s: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {}
@@ -100,7 +109,10 @@ enum VoiceNotes {
         }
         guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
         let time = Date(timeIntervalSince1970: Double(url.deletingPathExtension().lastPathComponent) ?? Date().timeIntervalSince1970)
-        if !t.isEmpty { await DailyLog.shared.quick("🎙 " + t, at: time) }  // saved before the audio goes
+        if !t.isEmpty {  // saved before the audio goes
+            let summary = await DailyLog.shared.quick("🎙 " + t, at: time)
+            WatchLink.shared.tellWatch("🎙 " + t, summary, at: time)
+        }
         try? FileManager.default.removeItem(at: url)
     }
 }

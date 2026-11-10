@@ -48,7 +48,7 @@ Apple Watch ──同步──▶ iPhone「健康」──▶ HealthBridge App �
 - 一台有「健康」数据的 iPhone（心率和训练需要 Apple Watch）
 - 同一 Wi-Fi 下的一台 Mac：装好 **Xcode**、`xcodegen`（`brew install xcodegen`）、Python 3.9+ 和 `cryptography`
 - 在 Xcode 里登录 Apple ID。免费账号能用，但每 7 天要重装一次；付费开发者账号（99 美元/年）一次签一年
-- **隐私：** 健康数据不出家里的网络。接收端只收用你的密钥加密过的数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600）和不进 git 的 `ios/HealthBridge/Config.swift`。手表口述的录音在 iPhone 本机转文字；「今天」页拍的餐照存进你的照片图库（开了 iCloud 照片也会同步上去）
+- **隐私：** 健康数据不出家里的网络。接收端只收用你的密钥加密过的数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600）和不进 git 的 `ios/HealthBridge/Config.swift`。手表口述的录音在 iPhone 本机转文字
 
 ## 快速开始
 

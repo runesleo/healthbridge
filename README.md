@@ -48,7 +48,7 @@ Apple does not let anything read watch data over the network. The only door is t
 - An iPhone with Apple Health data (an Apple Watch for heart rate and workouts)
 - A Mac on the same Wi-Fi, with **Xcode** and `xcodegen` (`brew install xcodegen`), Python 3.9+ and `cryptography`
 - An Apple ID signed in to Xcode. A free account works, but the app must be reinstalled every 7 days; a paid Apple Developer account ($99/year) signs it for a year
-- **Privacy:** health data never leaves your home network. The receiver only accepts payloads sealed with your secret; the secret lives in `~/.config/healthbridge/config.json` (mode 600) and in the git-ignored `ios/HealthBridge/Config.swift`. Watch voice notes are turned into text on the iPhone itself; meal photos taken on the Today screen are saved to your Photos library (and to iCloud Photos, if you use it)
+- **Privacy:** health data never leaves your home network. The receiver only accepts payloads sealed with your secret; the secret lives in `~/.config/healthbridge/config.json` (mode 600) and in the git-ignored `ios/HealthBridge/Config.swift`. Watch voice notes are turned into text on the iPhone itself
 
 ## Quick start
 

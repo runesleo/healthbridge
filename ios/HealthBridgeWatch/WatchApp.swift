@@ -46,7 +46,17 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     private func remember(_ text: String) {
         UserDefaults.standard.set(["text": text, "time": Date().timeIntervalSince1970], forKey: "lastLine")
     }
-    func session(_ s: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {}
+    func session(_ s: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
+        if !s.receivedApplicationContext.isEmpty { show(s.receivedApplicationContext) }
+    }
+    /// The phone's word on the latest note: the text it heard and what it logged.
+    func session(_ s: WCSession, didReceiveApplicationContext context: [String: Any]) { show(context) }
+    private func show(_ context: [String: Any]) {
+        guard let line = context["lastLine"] as? String, let time = context["time"] as? Double else { return }
+        UserDefaults.standard.set(["text": line, "time": time], forKey: "lastLine")
+        DispatchQueue.main.async { NotificationCenter.default.post(name: PhoneLink.lastLineChanged, object: nil) }
+    }
+    static let lastLineChanged = Notification.Name("lastLineChanged")
 }
 
 func L(_ en: String, _ zh: String) -> String {
@@ -157,6 +167,7 @@ struct WatchTodayView: View {
             case .sent:
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 40)).foregroundStyle(.green)
                 Text(L("Saved", "记下了")).font(.headline)
+                if !last.isEmpty { Text(last).font(.caption2).foregroundStyle(.secondary).lineLimit(3) }
                 Button { r.start() } label: { Label(L("One more", "再说一条"), systemImage: "mic.fill") }
             case .denied:
                 Text(L("Allow the microphone in Settings → Privacy → Microphone.", "请在手表「设置 → 隐私与安全性 → 麦克风」里允许 HealthBridge。"))
@@ -169,7 +180,7 @@ struct WatchTodayView: View {
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }.tint(.blue)
                 if !last.isEmpty {
-                    Text(L("Last: ", "上一条：") + last).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                    Text(L("Last: ", "上一条：") + last).font(.caption2).foregroundStyle(.secondary).lineLimit(3)
                 }
             }
         }
@@ -179,5 +190,6 @@ struct WatchTodayView: View {
             if !launched { launched = true; r.start() }   // cold launch = start talking right away
         }
         .onOpenURL { _ in if r.state != .recording { r.start() } }   // watch-face mic
+        .onReceive(NotificationCenter.default.publisher(for: PhoneLink.lastLineChanged)) { _ in refresh() }
     }
 }

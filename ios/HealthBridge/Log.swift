@@ -185,7 +185,6 @@ enum QuickParse {
 
 struct TodayView: View {
     @ObservedObject private var log = DailyLog.shared
-    @State private var showCamera = false
     @State private var note = ""
     @State private var quickResult = ""
     @FocusState private var typing: Bool
@@ -247,8 +246,6 @@ struct TodayView: View {
                 }
                 Section(L("Meal", "吃饭")) {
                     Button { log.add("meal", Self.mealNow) } label: { Label(L("Ate: \(Self.mealNow)", "吃了\(Self.mealNow)"), systemImage: "fork.knife") }
-                    Button { showCamera = true } label: { Label(L("Take a photo of it", "拍一张再记"), systemImage: "camera") }
-                        .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                 }
                 Section(L("Mood right now", "现在心情")) {
                     HStack {
@@ -286,36 +283,6 @@ struct TodayView: View {
                 }
             }
             .navigationTitle(L("Today", "今天"))
-            .sheet(isPresented: $showCamera) {
-                CameraPicker { image in
-                    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)  // the Mac reads meal photos from the Photos library
-                    log.add("meal", Self.mealNow + L(" (photo)", "（拍照）"))
-                }.ignoresSafeArea()
-            }
         }
-    }
-}
-
-struct CameraPicker: UIViewControllerRepresentable {
-    let onPhoto: (UIImage) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let p = UIImagePickerController()
-        p.sourceType = .camera
-        p.delegate = context.coordinator
-        return p
-    }
-    func updateUIViewController(_ vc: UIImagePickerController, context: Context) {}
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraPicker
-        init(_ p: CameraPicker) { parent = p }
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let img = info[.originalImage] as? UIImage { parent.onPhoto(img) }
-            parent.dismiss()
-        }
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
     }
 }

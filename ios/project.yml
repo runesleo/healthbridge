@@ -9,7 +9,7 @@ configFiles:
 settings:
   base:
     MARKETING_VERSION: "0.0.1"
-    CURRENT_PROJECT_VERSION: "2"
+    CURRENT_PROJECT_VERSION: "3"
 targets:
   HealthBridge:
     type: application
@@ -32,8 +32,6 @@ targets:
         UILaunchScreen: {}
         NSHealthShareUsageDescription: Reads activity, workout distance, heart rate, HRV, sleep, blood oxygen, respiratory rate, VO2 max, blood pressure, weight, workouts, water, time in daylight and logged moods, and sends them encrypted to your own Mac only.
         NSHealthUpdateUsageDescription: Saves the water and moods you log on the Today screen to Apple Health.
-        NSCameraUsageDescription: Takes a photo of your meal when you tap Take a photo.
-        NSPhotoLibraryAddUsageDescription: Saves meal photos to your Photos library so your Mac can tell when you ate.
         NSSpeechRecognitionUsageDescription: Turns the voice notes you record on Apple Watch into text, on this iPhone.
         NSLocalNetworkUsageDescription: Sends your encrypted health data to your own Mac on the same Wi-Fi.
         NSAppTransportSecurity: {NSAllowsLocalNetworking: true}

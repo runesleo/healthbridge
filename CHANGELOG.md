@@ -6,9 +6,9 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ### Added
 - Daily routine in each day's file: `sleep_start` / `sleep_end` (fell asleep, woke up), `awake_count` / `awake_min` (awake stretches in the night), `water_ml`, `daylight_min` (time in daylight) and `moods` (Health → State of Mind, iOS 18+)
-- **Today** screen: one tap for a glass of water, a meal (optionally with a photo), a mood or a check-in (woke up, meds, outside, exercise, bed); swipe to undo. Water and mood are saved to Apple Health; meals, check-ins and notes ride along with the day's sync
+- **Today** screen: one tap for a glass of water, a meal, a mood or a check-in (woke up, meds, outside, exercise, bed); swipe to undo. Water and mood are saved to Apple Health; meals, check-ins and notes ride along with the day's sync
 - **Quick log**: type or dictate one line ("had lunch, noodles", "喝了两杯水"); water, meals and check-ins in it are logged and the line is kept as a note. Also as Shortcuts/Siri actions, with **Log a glass of water**
-- **Apple Watch app**: opening it, or its watch-face complication, starts a voice note; the iPhone turns it into text on the device and logs it like a quick-log line
+- **Apple Watch app**: opening it, or its watch-face complication, starts a voice note; the iPhone turns it into text on the device and logs it like a quick-log line. The watch then shows what was heard and what was logged, so a misheard note is caught right away
 - `context` command: a Markdown health background for pasting into any AI — 7/30/90-day averages with change vs baseline, unusual days in the last two weeks (≥2 SD), yearly long-term trend, training by type and weekly load; includes your own `profile.md` notes. Today's still-growing activity totals are left out
 - **Sync health data** action for the Shortcuts app: a personal automation (a time of day, or joining your home Wi-Fi) can sync without opening the app
 - Receiver `extra_ports` config: listen on more ports, e.g. for a Tailscale address where `port` is taken
