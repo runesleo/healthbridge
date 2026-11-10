@@ -44,6 +44,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   HealthBridgeWatch:
     type: application
     platform: watchOS
@@ -67,6 +68,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         PRODUCT_BUNDLE_IDENTIFIER: $(inherited).watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   HealthBridgeWatchWidget:
     type: app-extension
     platform: watchOS
