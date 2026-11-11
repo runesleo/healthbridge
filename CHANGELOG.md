@@ -15,6 +15,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Opening the app syncs; unlocking the phone after a locked background run syncs
 
 ### Fixed
+- A reinstall, a new phone or **Backfill all history** no longer wipes earlier days' meals, check-ins and notes on the Mac. They live only in the app that logged them (90 days), so the receiver keeps its copy of any such entry a later sync of an earlier day no longer carries; today's entries still follow the phone, so swipe-to-undo reaches the Mac. Local test: `python3 mac/test_receiver.py`
 - The phone only counts a sync as delivered when the Mac's sealed ack decrypts to its own `sent_at`; a plain 200 from anything else at that address no longer makes it skip days
 - Overlapping syncs (unlock + open, two observers) share one send, syncs triggered during a backfill are skipped (it already covers today), and the receiver serializes day-file writes, so an older payload can no longer overwrite a newer one
 - Workout distance for cycling and swimming (was walking/running only)

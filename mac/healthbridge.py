@@ -145,6 +145,23 @@ def serve():
     def has_metrics(day):
         return bool(day.get("workouts")) or any(k not in ("date", "generated_at", "workouts", "_sent_at") for k in day)
 
+    def keep_logged(day, old, sent_at):
+        """Meals, check-ins and notes exist only in the app that logged them, for 90 days. The phone can only undo
+        today's, so one missing from an earlier day was lost on the phone side (reinstall, new phone, a backfill
+        past 90 days): keep the Mac's copy. Returns the day to write and how many entries were kept."""
+        if day["date"] >= time.strftime("%Y-%m-%d", time.localtime(sent_at)):
+            return day, 0
+        out, kept = dict(day), 0
+        ident = lambda e: (str(e.get("time")), str(e.get("label")))
+        for f in ("meals", "checkins", "notes"):
+            new = [e for e in day.get(f) or [] if isinstance(e, dict)]
+            seen = {ident(e) for e in new}
+            extra = [e for e in old.get(f) or [] if isinstance(e, dict) and ident(e) not in seen]
+            if extra:
+                out[f] = sorted(new + extra, key=lambda e: str(e.get("time", "")))
+                kept += len(extra)
+        return out, kept
+
     class Handler(BaseHTTPRequestHandler):
         timeout = 15  # drop clients that connect and stall
 
@@ -184,6 +201,9 @@ def serve():
                             if not has_metrics(day) and has_metrics(old):
                                 sys.stderr.write(f"kept {day['date']}: incoming day is empty\n")
                                 continue  # an empty read must never erase a recorded day
+                            day, kept = keep_logged(day, old, sent_at)
+                            if kept:
+                                sys.stderr.write(f"kept {kept} logged entries on {day['date']} the phone no longer has\n")
                         write_private(path, json.dumps({**day, "_sent_at": sent_at}, ensure_ascii=False, indent=2))
             except Exception as e:
                 sys.stderr.write(f"write failed: {e}\n")

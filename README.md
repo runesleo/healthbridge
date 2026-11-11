@@ -94,6 +94,7 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 - Rejected with 401: anything that does not decrypt, or was sealed more than 10 minutes ago
 - Replays cannot overwrite newer data: each day keeps the payload with the latest `sent_at`
 - An empty day never replaces a recorded one, and the phone never sends a day it couldn't fully read (locked phone, failed Health query). So if you delete the only sample of a day in Health, the Mac keeps its old copy of that day
+- Meals, check-ins and notes live only in the app that logged them (90 days on the phone). When a later sync of an earlier day no longer has some of them (reinstall, new phone, backfill), the Mac keeps its copy. Today's entries follow the phone, so swipe-to-undo still reaches the Mac
 - The Mac answers with a sealed ack of the payload's `sent_at`; the phone only counts a sync as delivered when that ack decrypts, so another service answering 200 on the same address can't make it skip days
 - Every date is validated (`YYYY-MM-DD`) before anything is written; bodies are capped at 4 MB; stalled connections time out after 15 s; data files are created with mode 600
 - The phone only falls back to the Mac's LAN IP when the `.local` name cannot be reached at all, never after an HTTP answer
@@ -105,6 +106,7 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 |------|-------------|--------|
 | Daily sync + full backfill | iPhone 15 Pro Max (iOS 26), MacBook (macOS 26.5), Xcode 26.5, personal team (free Apple ID) | ~10 years of history received in one backfill; archive generated |
 | Receiver rejects tampering | local test | valid 200 · plaintext 401 · wrong key 401 · stale 401 · bad date 400 |
+| Logged entries survive a reinstall or backfill | local test: `python3 mac/test_receiver.py` | earlier days keep meals/check-ins/notes a resend no longer carries · today's undo still reaches the Mac · concurrent posts keep the newest |
 
 ## Known limitations (v0.1)
 
