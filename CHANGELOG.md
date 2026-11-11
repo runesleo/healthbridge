@@ -23,6 +23,9 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - A failed send no longer leaves a gap: each run resends every day since the last sync the Mac accepted (up to 60 days)
 - Runs while the phone is locked are skipped instead of sending empty days that overwrote good data on the Mac. This now also holds when the phone locks mid-read, when a Health query fails, and during backfill; the receiver also refuses to replace a recorded day with an empty one
 
+### Thanks
+- @medy-Liao0530 for #1: the sealed ack, the empty-day guard, reads that fail instead of coming back empty (locked phone, failed Health query, backfill), serialized day-file writes, cycling/swimming distance and `init --force`
+
 ### Note
 - Update the Mac receiver and the iPhone app together: a new app treats an old receiver's plain `ok` as unconfirmed, keeps resending and stops backfill after the first chunk. Tap **Allow Health access** again to grant cycling/swimming distance
 
