@@ -134,6 +134,7 @@ def init(team=None, bundle_id=None, force=False):
 def serve():
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import hashlib, threading
+    from datetime import datetime
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     cfg = load_config()
     if not cfg or not cfg.get("secret"):
@@ -145,20 +146,31 @@ def serve():
     def has_metrics(day):
         return bool(day.get("workouts")) or any(k not in ("date", "generated_at", "workouts", "_sent_at") for k in day)
 
+    def when(e):  # an entry's moment; the phone writes times in its current zone, so compare instants, not text
+        t = str(e.get("time", ""))
+        try:
+            return (0, datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp(), "")
+        except (ValueError, OverflowError, OSError):
+            return (1, 0.0, t)
+
     def keep_logged(day, old, sent_at):
         """Meals, check-ins and notes exist only in the app that logged them, for 90 days. The phone can only undo
         today's, so one missing from an earlier day was lost on the phone side (reinstall, new phone, a backfill
-        past 90 days): keep the Mac's copy. Returns the day to write and how many entries were kept."""
-        if day["date"] >= time.strftime("%Y-%m-%d", time.localtime(sent_at)):
+        past 90 days): keep the Mac's copy. Cost: an undo that only reaches the Mac after midnight is not applied.
+        Returns the day to write and how many entries were kept."""
+        today = str(day.get("generated_at") or "")[:10]  # the phone's own date when it read the day
+        if not DATE_RE.fullmatch(today):
+            today = time.strftime("%Y-%m-%d", time.localtime(sent_at))
+        if day["date"] >= today:
             return day, 0
         out, kept = dict(day), 0
-        ident = lambda e: (str(e.get("time")), str(e.get("label")))
+        ident = lambda e: (when(e), str(e.get("label")))
         for f in ("meals", "checkins", "notes"):
             new = [e for e in day.get(f) or [] if isinstance(e, dict)]
             seen = {ident(e) for e in new}
             extra = [e for e in old.get(f) or [] if isinstance(e, dict) and ident(e) not in seen]
             if extra:
-                out[f] = sorted(new + extra, key=lambda e: str(e.get("time", "")))
+                out[f] = sorted(new + extra, key=when)
                 kept += len(extra)
         return out, kept
 

@@ -113,6 +113,20 @@ try:
     post([{"date": today, "steps": 50, "workouts": [], "notes": [t1]}], t0 + 6)
     post([{"date": today, "steps": 60, "workouts": []}], t0 + 7)
     check("today: undo on the phone reaches the Mac", "notes" not in day(today))
+    # "Today" is the phone's date (each day's generated_at), not the Mac's: they differ across time zones.
+    x = {"time": "2026-10-10T20:00:00+09:00", "label": "outside"}
+    post([{"date": "2026-10-10", "generated_at": "2026-10-10T20:01:00+09:00", "steps": 1, "workouts": [], "checkins": [x]}], t0 + 8)
+    post([{"date": "2026-10-10", "generated_at": "2026-10-11T00:30:00+09:00", "steps": 2, "workouts": []}], t0 + 9)
+    check("phone's yesterday keeps its entries whatever the Mac's date", day("2026-10-10").get("checkins") == [x])
+    y = {"time": "2026-10-12T23:00:00-08:00", "label": "typo"}
+    post([{"date": "2026-10-12", "generated_at": "2026-10-12T23:01:00-08:00", "steps": 1, "workouts": [], "notes": [y]}], t0 + 10)
+    post([{"date": "2026-10-12", "generated_at": "2026-10-12T23:30:00-08:00", "steps": 2, "workouts": []}], t0 + 11)
+    check("undo on the phone's today applies even when the Mac is a day ahead", "notes" not in day("2026-10-12"))
+    lunch8 = {"time": "2026-10-13T12:00:00+08:00", "label": "lunch"}
+    lunch9 = {"time": "2026-10-13T13:00:00+09:00", "label": "lunch"}  # same moment, phone moved one zone east
+    post([{"date": "2026-10-13", "steps": 1, "workouts": [], "meals": [lunch8]}], t0 + 12)
+    post([{"date": "2026-10-13", "steps": 2, "workouts": [], "meals": [lunch9]}], t0 + 13)
+    check("an entry re-sent in another time zone is not doubled", day("2026-10-13").get("meals") == [lunch9])
 finally:
     proc.terminate(); proc.wait(5)
 
