@@ -4,9 +4,11 @@
 
 [English](README.md) · **中文**
 
-把 Apple Watch 的数据从 iPhone 里拿出来，每天自动、加密地存到你自己的 Mac 上，中间不经过任何云。
+把 Apple Watch 的数据从 iPhone 加密同步到已配对的 Mac 接收端，可按需自动触发，不经过 HealthBridge 自营云中转。
 
 > **让 AI 帮你装：**「按照 https://github.com/runesleo/healthbridge/blob/main/install.md 的官方说明，在这台电脑上安装 HealthBridge。」
+
+> **测试版状态：** 已有面向受邀人员的 TestFlight 版本，但尚未核实公开 App Store 安装渠道或开放的 TestFlight 招募链接。安装前先看[安装方式](install.md)。
 
 ## 你能得到什么
 
@@ -16,7 +18,7 @@
 - **不用管它**：手表同步了新训练，iOS 会在后台叫醒 App 自动发；Mac 按天存成 JSON
 - **一份能直接看的档案**：Markdown 文件，按年、按月汇总，外加每次训练的明细，中英文可选
 - **给任何 AI 的健康背景**：`context` 输出一页 Markdown（各项基线、近 7 天 vs 基线、异常日、逐年长期趋势、训练量），贴给 ChatGPT、Claude、DeepSeek 或本地模型都行
-- **隐私优先**：手机上先加密，只发到家里 Wi-Fi 下你自己的 Mac，不经过任何第三方服务器
+- **隐私优先**：健康数据先在手机上加密，再发往你配置的接收端（通常是同一 Wi-Fi 下的 Mac），不经 HealthBridge 云中转；TestFlight 的诊断数据另见下文
 
 ## 它是怎么工作的
 
@@ -45,29 +47,42 @@ Apple Watch ──同步──▶ iPhone「健康」──▶ HealthBridge App �
 
 ## 需要什么
 
-- 一台有「健康」数据的 iPhone（心率和训练需要 Apple Watch）
-- 同一 Wi-Fi 下的一台 Mac：装好 **Xcode**、`xcodegen`（`brew install xcodegen`）、Python 3.9+ 和 `cryptography`
-- 在 Xcode 里登录 Apple ID。免费账号能用，但每 7 天要重装一次；付费开发者账号（99 美元/年）一次签一年
-- **隐私：** 健康数据不出家里的网络。接收端只收用你的密钥加密过的数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600）和不进 git 的 `ios/HealthBridge/Config.swift`。手表口述的录音在 iPhone 本机转文字
+- 一台有「健康」数据的 iPhone（受邀 TestFlight 版需要 iOS 17.0+）；使用手表功能需兼容的 Apple Watch（源码目标为 watchOS 10.0+）
+- 接收端需要一台 iPhone 能连通的 Mac，以及 Python 3.9+、`cryptography`
+- **仅自行编译 iPhone App 时需要：** Xcode、`xcodegen`（`brew install xcodegen`），并在 Xcode 登录 Apple ID；免费签名可能每 7 天需要重装
+- **健康数据隐私：** 接收端只接受匹配共享密钥的加密数据；密钥存在 `~/.config/healthbridge/config.json`（权限 600），自行编译时还写入不进 git 的 `ios/HealthBridge/Config.swift`。接收地址可修改，因此应保持在可信网络。手表语音在 iPhone 本机转写
 
-## 快速开始
+**TestFlight 隐私另算：** Apple 会收集测试期间的崩溃诊断、使用统计、测试者资料（包括邮箱）及主动提交的反馈；这些信息可能与测试者身份关联并提供给开发者。**授权健康数据前先核对预设接收地址**，它未必是你自己的 Mac。反馈和截图不要包含敏感健康数值。详见 [Apple 的 TestFlight 隐私说明](https://testflight.apple.com/)。
+
+## 安装方式
+
+| 用户 | iPhone / Apple Watch 安装 | Mac 接收端 |
+|------|--------------------------|------------|
+| 受邀 TestFlight 测试者 | 在 iOS 17.0+ 的 iPhone 上打开邀请，进入 TestFlight 接受并安装；如提供兼容手表版，可在 TestFlight 的 App Details 安装 | 必须已经与该测试包**使用同一密钥**；仅安装测试版不能给一台新 Mac 自动配对 |
+| 自行编译者 | 按下方 Xcode 步骤签名安装 | `init` 会生成匹配的 Mac / iPhone 配置，是当前可自助完成全链路同步的方式 |
+| 没有邀请的普通访客 | 当前没有已证实开放的预编译安装渠道，可从源码自行编译 | 不会自动安装 |
+
+目前 App 虽可修改接收地址，但加密密钥是在构建时写入的。换一台 Mac 运行 `init` 会生成新密钥，**不能让已安装的 TestFlight 包自动配对**。完整步骤与首次同步验收见 [install.md](install.md)。
+
+## 快速开始（自行用 Xcode 编译）
 
 ```bash
 git clone https://github.com/runesleo/healthbridge.git
 cd healthbridge
 python3 -m pip install --user cryptography
-python3 mac/healthbridge.py init --team 你的TeamID   # 生成密钥、配置和 iOS 的 Config.swift
-python3 mac/healthbridge.py serve                    # 保持运行（开机自启见 docs/healthbridge.receiver.plist）
-cd ios && xcodegen generate && open HealthBridge.xcodeproj
+python3 mac/healthbridge.py init                     # 生成密钥、配置和 iOS 的 Config.swift；可选 --team TeamID
+cd ios && xcodegen generate && open HealthBridge.xcodeproj && cd ..
 ```
 
-在 Xcode 里选你的 iPhone，点运行。手机上：设置 → 通用 → VPN 与设备管理 → 信任你的开发者账号；打开 HealthBridge → **授权健康数据** → **立即同步**（允许本地网络），再点一次 **补传全部历史**。
+另开一个终端，在仓库根目录运行 `python3 mac/healthbridge.py serve` 并保持运行（开机自启模板见 `docs/healthbridge.receiver.plist`）。在 Xcode 里选你的 iPhone，点运行。手机上：如有提示，去「设置 → 通用 → VPN 与设备管理」信任开发者；打开 HealthBridge → **授权健康数据** → **立即同步**（允许本地网络）。先确认 Mac 已收到数据，再点一次 **补传全部历史**。
 
 随时自检：
 
 ```bash
 python3 mac/healthbridge.py doctor          # 或加 --json
 ```
+
+`doctor` 还会检查 Xcode、`xcodegen` 和本地 `Config.swift`，所以它的整体 `READY` 不能当成「仅安装 TestFlight 的 Mac 接收端」验收。首次成功需同时看到手机确认发送，以及 Mac 上新写入的日期 JSON，详见 [install.md](install.md)。
 
 ## 定时同步
 
@@ -98,7 +113,7 @@ python3 mac/healthbridge.py context --days 180 --out ~/health-context.md
 - Mac 收到后回一个用同一把钥匙封装的 `sent_at` 确认，手机解得开才算发送成功；同一地址上别的服务回 200 也不会让它跳过这些天
 - 写入前先校验所有日期（`YYYY-MM-DD`），单次请求上限 4 MB，卡住不发数据的连接 15 秒断开；数据文件权限为 600
 - 手机只在完全连不上 `.local` 名字时才改用 Mac 的局域网 IP，收到任何 HTTP 回应后都不会改发别处
-- 局域网上走明文 HTTP；保密和防篡改靠的是加密封装
+- 向配置的接收地址发送 HTTP（通常在局域网内）；保密和防篡改靠加密封装。Mac 接收端默认监听所有网络接口，不要把端口暴露到公网
 
 ## 已验证
 
@@ -110,9 +125,9 @@ python3 mac/healthbridge.py context --days 180 --out ~/health-context.md
 
 ## 已知限制（v0.1）
 
-- iPhone App 需要你自己用 Xcode 编译安装，没有 App Store 版本
-- 免费 Apple ID 的签名 7 天过期
-- 只有手机和 Mac 在同一 Wi-Fi 时才会同步；不在家的日子会在下次同步时补上，最多往回补 60 天（更早的缺口用「补传全部历史」）
+- TestFlight 需要邀请，而且当前无法让任意新 Mac 与已分发的测试包自助配对；仓库尚未提供经核实的公开 App Store 安装版
+- 自行编译时，免费 Apple ID 签名约 7 天过期
+- 同步需要手机能连接 Mac 接收端，通常是同一 Wi-Fi；离线漏掉的日子会在下次成功同步时补上，最多往回补 60 天（更早的缺口用「补传全部历史」）
 - 后台什么时候跑由 iOS 决定（最多每小时一次）；打开 App 一定会同步
 - 手机开着 VPN / 代理 App 的话，要让局域网流量走直连
 - 训练类型按苹果的 `HKWorkoutActivityType` 编号对照；不认识的显示为 `#编号`
