@@ -4,9 +4,11 @@
 
 **English** · [中文](README.zh.md)
 
-Get your Apple Watch data out of the iPhone and onto your own Mac — every day, automatically, encrypted, with no cloud in between.
+Get your Apple Watch data out of the iPhone and onto a paired Mac receiver with encrypted sync and optional automatic triggers — no HealthBridge-operated cloud relay.
 
 > **Install with an AI agent:** "Set up HealthBridge on this computer by following the official instructions at https://github.com/runesleo/healthbridge/blob/main/install.md."
+
+> **Beta availability:** A TestFlight build is available to invited testers, but neither a public App Store install path nor a public TestFlight enrollment link has been verified. See [installation paths](install.md) before installing.
 
 ## What you get
 
@@ -16,7 +18,7 @@ Get your Apple Watch data out of the iPhone and onto your own Mac — every day,
 - **Automatic** — iOS wakes the app when the watch syncs a new workout; the Mac stores one JSON file per day
 - **A readable archive** — a Markdown file with yearly and monthly summaries plus a list of every workout (English or Chinese)
 - **Health context for any AI** — `context` prints a one-page Markdown summary (baselines, last 7 days vs baseline, unusual days, long-term yearly trend, training load) to paste into ChatGPT, Claude or any other AI, local or cloud
-- **Private by design** — encrypted on the phone, sent only to your Mac on your home Wi-Fi, no third-party server
+- **Private by design** — health payloads are encrypted on the phone and sent to the configured receiver (normally your Mac on the same Wi-Fi), without a HealthBridge cloud relay. TestFlight diagnostics are separate; see below
 
 ## How it works
 
@@ -45,29 +47,42 @@ Apple does not let anything read watch data over the network. The only door is t
 
 ## Requirements
 
-- An iPhone with Apple Health data (an Apple Watch for heart rate and workouts)
-- A Mac on the same Wi-Fi, with **Xcode** and `xcodegen` (`brew install xcodegen`), Python 3.9+ and `cryptography`
-- An Apple ID signed in to Xcode. A free account works, but the app must be reinstalled every 7 days; a paid Apple Developer account ($99/year) signs it for a year
-- **Privacy:** health data never leaves your home network. The receiver only accepts payloads sealed with your secret; the secret lives in `~/.config/healthbridge/config.json` (mode 600) and in the git-ignored `ios/HealthBridge/Config.swift`. Watch voice notes are turned into text on the iPhone itself
+- An iPhone with Apple Health data (iOS 17.0+ for the invited TestFlight build); a compatible Apple Watch is needed for watch features (the source target is watchOS 10.0+)
+- A Mac reachable from the iPhone, with Python 3.9+ and `cryptography` for the receiver
+- **Only if building the iPhone app yourself:** Xcode, `xcodegen` (`brew install xcodegen`) and an Apple ID signed in to Xcode. Free-account signing may require reinstalling after 7 days
+- **Health-data privacy:** the receiver accepts payloads encrypted with a shared secret stored in `~/.config/healthbridge/config.json` (mode 600) and, for self-built apps, the git-ignored `ios/HealthBridge/Config.swift`. The network destination is configurable, so keep it on a trusted network. Watch voice notes are transcribed on the iPhone
 
-## Quick start
+**TestFlight privacy is separate:** Apple collects beta crash diagnostics, usage information, tester details (including email address) and submitted feedback; this information may be linked to the tester and shared with the developer. Check the preconfigured receiver address **before granting Health access**; it may not be your own Mac. Do not include sensitive health values in feedback or screenshots. See [Apple's TestFlight privacy information](https://testflight.apple.com/).
+
+## Installation paths
+
+| Who | Install the iPhone / Watch app | Mac receiver |
+|-----|-------------------------------|--------------|
+| Invited TestFlight tester | Open your invitation on an iPhone running iOS 17.0+, then accept and install in TestFlight. If available, install the companion Watch app from TestFlight → App Details | Requires a receiver already provisioned with the **same secret as that beta build**; installing TestFlight alone does not pair a new Mac |
+| Self-builder | Follow the Xcode steps below to sign and install your own build | `init` creates matching Mac/iPhone settings; this is the supported self-service end-to-end path |
+| Visitor without an invitation | No public prebuilt install is currently documented; you may build from source | Not automatically installed |
+
+The TestFlight app lets you edit the receiver URL, but its encryption secret is compiled into the build. Running `init` on a different Mac generates a new secret and **does not pair that Mac with the already-distributed beta**. See [install.md](install.md) for the steps and first-sync checks.
+
+## Quick start — build from source with Xcode
 
 ```bash
 git clone https://github.com/runesleo/healthbridge.git
 cd healthbridge
 python3 -m pip install --user cryptography
-python3 mac/healthbridge.py init --team YOUR_TEAM_ID     # secret + config + iOS Config.swift
-python3 mac/healthbridge.py serve                        # keep running (run at login: docs/healthbridge.receiver.plist)
-cd ios && xcodegen generate && open HealthBridge.xcodeproj
+python3 mac/healthbridge.py init                        # secret + config + iOS Config.swift; --team TEAM_ID is optional
+cd ios && xcodegen generate && open HealthBridge.xcodeproj && cd ..
 ```
 
-In Xcode pick your iPhone and press Run. On the phone: Settings → General → VPN & Device Management → trust your developer account; open HealthBridge → **Allow Health access** → **Sync now** (allow local network). Then **Backfill all history** once.
+In a **separate Terminal** from the repository root, run `python3 mac/healthbridge.py serve` and leave it running (start-at-login template: `docs/healthbridge.receiver.plist`). In Xcode pick your iPhone and press Run. On the phone: Settings → General → VPN & Device Management → trust your developer account if prompted; open HealthBridge → **Allow Health access** → **Sync now** (allow local network). Confirm delivery on the Mac before running **Backfill all history** once.
 
 Check everything at any time:
 
 ```bash
 python3 mac/healthbridge.py doctor          # or --json
 ```
+
+The `doctor` command also checks Xcode, `xcodegen` and the locally generated `Config.swift`; its overall `READY` flag is not a TestFlight-only receiver check. A first successful sync needs a confirmed iPhone send plus a newly written dated JSON file on the Mac; see [install.md](install.md).
 
 ## Scheduled sync
 
@@ -98,7 +113,7 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 - The Mac answers with a sealed ack of the payload's `sent_at`; the phone only counts a sync as delivered when that ack decrypts, so another service answering 200 on the same address can't make it skip days
 - Every date is validated (`YYYY-MM-DD`) before anything is written; bodies are capped at 4 MB; stalled connections time out after 15 s; data files are created with mode 600
 - The phone only falls back to the Mac's LAN IP when the `.local` name cannot be reached at all, never after an HTTP answer
-- Transport is plain HTTP on your LAN; confidentiality and integrity come from the sealed payload
+- Transport is HTTP to the configured receiver address (normally on your LAN); confidentiality and integrity come from the sealed payload. The Mac receiver listens on all interfaces by default, so do not expose its port to the public internet
 
 ## Verified
 
@@ -110,9 +125,9 @@ Sleep is counted for the night window 18:00 → 12:00, so daytime naps are not i
 
 ## Known limitations (v0.1)
 
-- You build the iPhone app yourself with Xcode; there is no App Store build
-- Free Apple ID signing expires after 7 days
-- Syncs only when the phone and Mac share a Wi-Fi; days missed while away are re-sent on the next sync, up to 60 days back (older gaps: Backfill all history)
+- TestFlight requires an invitation, and an invited beta is not yet self-service-pairable with an arbitrary new Mac; no public App Store build is currently documented
+- Free Apple ID signing for a self-built app expires after 7 days
+- Sync requires a reachable receiver, normally on the same Wi-Fi; missed days are re-sent on the next successful sync, up to 60 days back (older gaps: Backfill all history)
 - iOS decides when background delivery runs (at most hourly); opening the app always syncs
 - If your phone runs a VPN/proxy app, make sure local network traffic goes direct
 - Workout types are mapped from Apple's `HKWorkoutActivityType` numbers; unknown ones show as `#<number>`
